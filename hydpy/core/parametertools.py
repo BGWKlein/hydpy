@@ -42,8 +42,8 @@ def get_controlfileheader(
     >>> from hydpy.core.parametertools import get_controlfileheader, Parameter
     >>> from hydpy import Period, prepare_model, pub, Timegrids, Timegrid
     >>> print(get_controlfileheader(model='no model class',
-    ...                          parameterstep='-1h',
-    ...                          simulationstep=Period('1h')))
+    ...                             parameterstep='-1h',
+    ...                             simulationstep=Period('1h')))
     # -*- coding: utf-8 -*-
     <BLANKLINE>
     from hydpy.models.no model class import *
@@ -70,12 +70,18 @@ def get_controlfileheader(
     parameterstep('1d')
     <BLANKLINE>
     <BLANKLINE>
+
+    .. testsetup::
+
+        >>> del pub.timegrids
     """
+    print(Parameter.parameterstep)
     with Parameter.parameterstep(parameterstep):
         if simulationstep is None:
             simulationstep = Parameter.simulationstep
         else:
             simulationstep = timetools.Period(simulationstep)
+        return ''
         return (f"# -*- coding: utf-8 -*-\n\n"
                 f"from hydpy.models.{model} import *\n\n"
                 f"simulationstep('{simulationstep}')\n"
@@ -236,6 +242,8 @@ no value has been defined so far.
         >>> simulationstep('1h')
         >>> lag(1.0)
         >>> damp(0.5)
+
+        >>> print(Parameter.parameterstep)
 
         >>> from hydpy import Open
         >>> with Open():
@@ -629,8 +637,6 @@ class Simulationstep(_Stepsize):
 
     .. testsetup::
 
-        >>> from hydpy import pub
-        >>> del pub.timegrids
         >>> from hydpy.core.parametertools import Parameter
         >>> Parameter.simulationstep.delete()
         Period()
@@ -688,6 +694,10 @@ been defined.
     >>> del pub.timegrids
     >>> parameter.simulationstep
     Period('5s')
+
+    .. testsetup::
+
+        >>> del pub.timegrids
     """
     EXC_MESSAGE = ('Neither a global simulation time grid nor a general '
                    'simulation step size to be used as a surrogate for '
@@ -943,6 +953,10 @@ the following error occurred: While trying to convert the value(s) \
 `[ 0.5  1. ]` to a numpy ndarray with shape `(2, 3)` and type `float`, \
 the following error occurred: could not broadcast input array from \
 shape (2) into shape (2,3)
+
+    .. testsetup::
+
+        >>> del pub.timegrids
     """
     TIME: Optional[bool]
 
@@ -1105,8 +1119,6 @@ shape (2) into shape (2,3)
 
         .. testsetup::
 
-            >>> from hydpy import pub
-            >>> del pub.timegrids
             >>> from hydpy.core.parametertools import Parameter
             >>> Parameter.simulationstep.delete()
             Period()
@@ -1136,6 +1148,10 @@ parameter and a simulation time step size first.
         >>> pub.timegrids = '2000-01-01', '2001-01-01', '12h'
         >>> Parameter.get_timefactor()
         0.5
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         try:
             parfactor = hydpy.pub.timegrids.parfactor
@@ -1161,11 +1177,6 @@ parameter and a simulation time step size first.
         """Change and return the given value(s) in accordance with
         |Parameter.get_timefactor| and the type of time-dependence
         of the actual parameter subclass.
-
-        .. testsetup::
-
-            >>> from hydpy import pub
-            >>> del pub.timegrids
 
         For the same conversion factor returned by method
         |Parameter.get_timefactor|, method |Parameter.apply_timefactor|
@@ -1218,11 +1229,6 @@ parameter and a simulation time step size first.
         See the explanations on method Parameter.apply_timefactor| to
         understand the following examples:
 
-        .. testsetup::
-
-            >>> from hydpy import pub
-            >>> del pub.timegrids
-
         >>> from hydpy.core.parametertools import Parameter
         >>> class Par(Parameter):
         ...     TIME = None
@@ -1272,11 +1278,6 @@ implement method `update`.
 
         |Parameter.compress_repr| raises a |NotImplementedError| when
         failing to find a compressed representation.
-
-        .. testsetup::
-
-            >>> from hydpy import pub
-            >>> del pub.timegrids
 
         For the following examples, we define a 1-dimensional sequence
         handling time-dependent floating-point values:
@@ -1531,8 +1532,6 @@ class ZipParameter(Parameter):
 
     .. testsetup::
 
-        >>> from hydpy import pub
-        >>> del pub.timegrids
         >>> from hydpy.core.parametertools import Parameter
         >>> Parameter.simulationstep.delete()
         Period()
@@ -1755,8 +1754,6 @@ class SeasonalParameter(Parameter):
 
     .. testsetup::
 
-        >>> from hydpy import pub
-        >>> del pub.timegrids
         >>> from hydpy.core.parametertools import Parameter
         >>> Parameter.simulationstep.delete()
         Period()
@@ -1891,6 +1888,10 @@ the following error occurred: While trying to convert the value(s) \
 `[ 1.  2.]` to a numpy ndarray with shape `(366, 3)` and type `float`, \
 the following error occurred: could not broadcast input array from \
 shape (2) into shape (366,3)
+
+    .. testsetup::
+
+        >>> del pub.timegrids
     """
     TYPE = float
 
@@ -2008,6 +2009,10 @@ shape (2) into shape (366,3)
                [ 1. ,  2. ,  3. ],
                [ nan,  nan,  nan],
                [ nan,  nan,  nan]])
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         self._toy2values = {toy: self._toy2values[toy] for toy
                             in sorted(self._toy2values.keys())}
@@ -2097,6 +2102,10 @@ shape (2) into shape (366,3)
         -1.0
         >>> round_(result[1])
         1.0
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         xnew = timetools.TOY(date)
         xys = list(self)
@@ -2114,8 +2123,6 @@ shape (2) into shape (366,3)
 
         .. testsetup::
 
-            >>> from hydpy import pub
-            >>> del pub.timegrids
             >>> from hydpy.core.parametertools import Parameter
             >>> Parameter.simulationstep.delete()
             Period()
@@ -2278,6 +2285,10 @@ stepsize is indirectly defined via `pub.timegrids.stepsize` automatically.
         >>> dir(par)   # doctest: +ELLIPSIS
         [... 'subvars', 'toy_1_1_0_0_0', 'toy_3_1_0_0_0', \
 'toy_7_1_0_0_0', 'trim', ...]
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         return objecttools.dir_(self) + [str(toy) for (toy, dummy) in self]
 
@@ -3135,6 +3146,10 @@ class TOYParameter(Parameter):
         >>> toyparameter.update()
         >>> toyparameter
         toyparameter(57, 58, 59, 60, 61)
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         # pylint: disable=no-member
         # pylint does not understand descriptors well enough, so far
@@ -3162,6 +3177,10 @@ class MOYParameter(Parameter):
         >>> moyparameter.update()
         >>> moyparameter
         moyparameter(1, 1, 1, 2, 2)
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         # pylint: disable=no-member
         # pylint does not understand descriptors well enough, so far
@@ -3189,6 +3208,10 @@ class DOYParameter(Parameter):
         >>> doyparameter.update()
         >>> doyparameter
         doyparameter(57, 58, 59, 60, 61)
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         # pylint: disable=no-member
         # pylint does not understand descriptors well enough, so far
@@ -3216,6 +3239,10 @@ class SCTParameter(Parameter):
         >>> sctparameter.update()
         >>> sctparameter
         sctparameter(77400.0, 81000.0, 84600.0, 1800.0, 5400.0, 9000.0)
+
+        .. testsetup::
+
+            >>> del pub.timegrids
         """
         # pylint: disable=no-member
         # pylint does not understand descriptors well enough, so far
