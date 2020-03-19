@@ -75,13 +75,11 @@ def get_controlfileheader(
 
         >>> del pub.timegrids
     """
-    print(Parameter.parameterstep)
     with Parameter.parameterstep(parameterstep):
         if simulationstep is None:
             simulationstep = Parameter.simulationstep
         else:
             simulationstep = timetools.Period(simulationstep)
-        return ''
         return (f"# -*- coding: utf-8 -*-\n\n"
                 f"from hydpy.models.{model} import *\n\n"
                 f"simulationstep('{simulationstep}')\n"
@@ -242,8 +240,6 @@ no value has been defined so far.
         >>> simulationstep('1h')
         >>> lag(1.0)
         >>> damp(0.5)
-
-        >>> print(Parameter.parameterstep)
 
         >>> from hydpy import Open
         >>> with Open():
