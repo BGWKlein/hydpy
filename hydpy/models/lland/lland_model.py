@@ -5056,7 +5056,8 @@ class Calc_QBB_V1(modeltools.Method):
         qbb(0.0, 0.0, 0.0, 1.0, 1.2, 1.866667, 3.6, 7.6)
 
         If we do not want to have capillary rise and  percolation at the same
-        time we activate the flag |CorrQBBFlag|.
+        time we activate the flag |CorrQBBFlag|:
+
         >>> corrqbbflag(1)
         >>> model.calc_qbb_v1()
         >>> fluxes.qbb
