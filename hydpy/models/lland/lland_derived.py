@@ -9,6 +9,7 @@ from hydpy.core import parametertools
 from hydpy.core import objecttools
 # ...from lland
 from hydpy.models.lland import lland_control
+from hydpy.models.lland import lland_fixed
 from hydpy.models.lland import lland_parameters
 
 
@@ -177,7 +178,6 @@ class KInz(lland_parameters.LanduseMonthParameter):
         self.value = con.hinz*con.lai
 
 
-
 class F1SIMax(lland_parameters.LanduseMonthParameter):
     """Faktor zur Berechnung der Schneeinterzeptionskapazität bezogen auf die
     Blattoberfläche (factor for the calculation of snow interception capacity
@@ -221,7 +221,9 @@ class HeatOfFusion(lland_parameters.ParameterLand):
 
     CONTROLPARAMETERS = (
         lland_control.BoWa2Z,
-        lland_control.RSchmelz,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.RSchmelz,
     )
 
     def update(self):
@@ -235,15 +237,13 @@ class HeatOfFusion(lland_parameters.ParameterLand):
         >>> parameterstep('1d')
         >>> nhru(2)
         >>> lnk(ACKER, LAUBW)
-        >>> rschmelz(0.334)
         >>> bowa2z(80.0)
         >>> derived.heatoffusion.update()
         >>> derived.heatoffusion
         heatoffusion(26.72)
-
         """
-        con = self.subpars.pars.control
-        self.value = con.rschmelz*con.bowa2z
+        self.value = \
+            self.subpars.pars.fixed.rschmelz*self.subpars.pars.control.bowa2z
 
 
 class F1SIRate(lland_parameters.LanduseMonthParameter):

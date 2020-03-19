@@ -99,7 +99,7 @@ class DryAirPressure(sequencetools.FluxSequence):
 
 
 class DensityAir(sequencetools.FluxSequence):
-    """Air density [kg/m^3]"""
+    """Air density [kg/m³]"""
     NDIM, NUMERIC = 1, False
 
 
@@ -240,27 +240,20 @@ class EvPoSnow(lland_sequences.Flux1DSequence):
 
 
 class WGTF(lland_sequences.Flux1DSequence):
-    """Wärmestrom durch Grad-Tag-Faktor (heat flux of degree-day method)
+    """Mit dem Grad-Tag-Verfahren berechneter Wärmeestrom in die Schneedecke
+    (heat flux into the snow layer calculated with the degree-day method)
     [MJ/m²/T].
 
-    Der Wärmestrom durch den Grad-Tag-Faktor ist positiv, wenn Wärme in die
-    Schneedecke eingetragen wird (The heat flux of the degree-day method is
-    positive if the snow layer is heated)."""
+    Positive values indicate an energy gain of the snow layer.
+    """
     NDIM, NUMERIC = 1, False
 
 
 class WNied(lland_sequences.Flux1DSequence):
-    """Wärmestrom durch Niederschlag (heat flux according to precipitation)
-    [MJ/m²/T].
+    """Niederschlagsbedingter Wärmestrom in die Schneedecke (heat flux
+    into the snow layer due to precipitation) [MJ/m²/T].
 
-    Der Wärmestrom durch den Niederschlag ist positiv, wenn Wärme in die
-    Schneedecke eingetragen wird (The precipitation heat flux is
-    positive if the snow layer is heated).
-
-    In |Calc_WNied_V1| ist |WNied| relativ zur Temperatur |TRefN| in
-    |Calc_WNied_V2| wird für |TRefN| immer 0°C angenommen (In |Calc_WNied_V1|
-    is |WNied| relative to the temperature |TRefN| in |Calc_WNied_V2|
-    |TRefN| is assumed to be 0°C).
+    Positive values indicate an energy gain of the snow layer.
     """
     NDIM, NUMERIC = 1, False
 
@@ -284,8 +277,9 @@ class TempSSurface(lland_sequences.Flux1DSequence):
     NDIM, NUMERIC = 1, False
 
 
-class AlbedoCorr(lland_sequences.Flux1DSequence):
-    """Albedo der Schneeoberfläche (albedo of snow surface) []."""
+class ActualAlbedo(lland_sequences.Flux1DSequence):
+    """Aktuelle Albedo der relevanten Oberfläche (the current albedo of
+    the relevant surface) [-]."""
     NDIM, NUMERIC = 1, False
 
 

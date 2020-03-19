@@ -113,13 +113,6 @@ class BoWa2Z(lland_parameters.ParameterLand):
     INIT = 80.
 
 
-class Z(lland_parameters.ParameterComplete):
-    """Halbe Mächtigkeit der betrachteten Bodensäule (half thickness of surface
-     soil layer) [m]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (None, None)
-    INIT = 0.1
-
-
 class CG(lland_parameters.ParameterLand):
     """Volumetrische Wärmekapazität des Bodens (volumetric heat capacity of
     soil) [MJ/m³/°C]."""
@@ -289,13 +282,6 @@ class GTF(lland_parameters.ParameterLand):
     INIT = 3.
 
 
-class RSchmelz(parametertools.Parameter):
-    """Spezifische Schmelzwärme von Wasser (specific melt heat of water)
-    [MJ/kg]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., None)
-    INIT = 0.334
-
-
 class Turb0(parametertools.Parameter): #todo entspricht A0 in Larsim
     """Parameter des Übergangskoeffizienten des turbulenten Wärmestroms
     (parameter of transition coefficient for turbulent heat flux)
@@ -439,20 +425,6 @@ class FrAtm(parametertools.Parameter):
     NDIM, TYPE, TIME, SPAN = 0, float, None, (None, None)
     INIT = 1.28
     #todo: In Doku steht Eichparameter aber  nicht in Tape35
-
-
-class CPWasser(parametertools.Parameter):
-    """Spezifische Wärmekapazität von Wasser (specific heat capacity of water)
-    [MJ/kg/K]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., None)
-    INIT = 0.0041868
-
-
-class CPEis(parametertools.Parameter):
-    """Spezifische Wärmekapazität von Eis bei 0 °C (specific heat capacity of
-    ice at a temperature of 0 °C) [MJ/kg/K]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., None)
-    INIT = 0.00209
 
 
 class PWMax(lland_parameters.ParameterLand):

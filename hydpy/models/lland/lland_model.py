@@ -4,10 +4,9 @@
 """
 .. _`Allen`: http://www.fao.org/3/x0490e/x0490e00.htm
 """
-# ToDo: search for varrho
 # imports...
 # ...from standard library
-import typing
+from typing import *
 # ...from HydPy
 from hydpy.core import modeltools
 from hydpy.auxs import roottools
@@ -16,6 +15,7 @@ from hydpy.cythons import modelutils
 # ...from lland
 from hydpy.models.lland import lland_control
 from hydpy.models.lland import lland_derived
+from hydpy.models.lland import lland_fixed
 from hydpy.models.lland import lland_inputs
 from hydpy.models.lland import lland_fluxes
 from hydpy.models.lland import lland_states
@@ -23,6 +23,8 @@ from hydpy.models.lland import lland_logs
 from hydpy.models.lland import lland_aides
 from hydpy.models.lland import lland_outlets
 from hydpy.models.lland.lland_constants import WASSER, FLUSS, SEE, VERS, NADELW
+if TYPE_CHECKING:
+    from hydpy import lland
 
 
 class Calc_NKor_V1(modeltools.Method):
@@ -33,7 +35,7 @@ class Calc_NKor_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
         >>> kg(0.8, 1.0, 1.2)
@@ -52,14 +54,14 @@ class Calc_NKor_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.NKor,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         inp = model.sequences.inputs.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
-            flu.nkor[k] = con.kg[k] * inp.nied
+            flu.nkor[k] = con.kg[k]*inp.nied
 
 
 class Calc_TKor_V1(modeltools.Method):
@@ -70,7 +72,7 @@ class Calc_TKor_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
         >>> kt(-2.0, 0.0, 2.0)
@@ -89,14 +91,14 @@ class Calc_TKor_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.TKor,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         inp = model.sequences.inputs.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
-            flu.tkor[k] = con.kt[k] + inp.teml
+            flu.tkor[k] = con.kt[k]+inp.teml
 
 
 class Calc_PsychrometricConstant_V1(modeltools.Method):
@@ -110,7 +112,7 @@ class Calc_PsychrometricConstant_V1(modeltools.Method):
 
         The following calculation agrees with example 2 of `Allen`_:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(1)
         >>> inputs.atmosphericpressure(81.8)
@@ -125,26 +127,63 @@ class Calc_PsychrometricConstant_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.PsychrometricConstant,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         inp = model.sequences.inputs.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        flu.psychrometricconstant = 6.65e-4 * inp.atmosphericpressure
-
-    # ToDo: Wird in Larsim nicht berechnet sondern konstant angenommen
-    # (evtl. in lland_v3 anpassen)
+        flu.psychrometricconstant = 6.65e-4*inp.atmosphericpressure
 
 
-class Calc_WindSpeed2m_V1(modeltools.Method):
-    """Adjust the measured wind speed to a height of 2 meters
-    above the ground.
+class Return_AdjustedWindSpeed_V1(modeltools.Method):
+    """Adjust the measured wind speed to the given defined height above
+    the ground and return it.
 
-    For further documentation see method |Adjust_WindSpeed_V1|.
+    Basic equation (`Allen`_ equation 47, modified for higher precision):
+      :math:`WindSpeed \\cdot
+      \\frac{ln((newheight-d)/z_0)}{ln((MeasuringHeightWindSpeed-d)/z_0)}` \n
+
+      :math:`d = 2 / 3 \\cdot 0.12` \n
+
+      :math:`z_0 = 0.123 \\cdot 0.12`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
+        >>> parameterstep()
+        >>> nhru(1)
+        >>> measuringheightwindspeed(10.0)
+        >>> inputs.windspeed = 5.0
+        >>> from hydpy import round_
+        >>> round_(model.return_adjustedwindspeed_v1(2.0))
+        3.738763
+        >>> round_(model.return_adjustedwindspeed_v1(0.5))
+        2.571532
+        """
+    CONTROLPARAMETERS = (
+        lland_control.MeasuringHeightWindSpeed,
+    )
+    REQUIREDSEQUENCES = (
+        lland_inputs.WindSpeed,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model', newheight: float) -> float:
+        con = model.parameters.control.fastaccess
+        inp = model.sequences.inputs.fastaccess
+        d_d = 2./3.*.12
+        d_z0 = .123*.12
+        return (inp.windspeed *
+                (modelutils.log((newheight-d_d)/d_z0) /
+                 modelutils.log((con.measuringheightwindspeed-d_d)/d_z0)))
+
+
+class Calc_WindSpeed2m_V1(modeltools.Method):
+    """Adjust the measured wind speed to a height of 2 meters above the ground.
+
+    Example:
+
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(1)
         >>> measuringheightwindspeed(10.0)
@@ -153,6 +192,9 @@ class Calc_WindSpeed2m_V1(modeltools.Method):
         >>> fluxes.windspeed2m
         windspeed2m(3.738763)
     """
+    SUBMETHODS = (
+        Return_AdjustedWindSpeed_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.MeasuringHeightWindSpeed,
     )
@@ -162,22 +204,19 @@ class Calc_WindSpeed2m_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WindSpeed2m,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         flu = model.sequences.fluxes.fastaccess
-        flu.windspeed2m = model.adjust_windspeed_v1(2.)
+        flu.windspeed2m = model.return_adjustedwindspeed_v1(2.)
 
 
 class Calc_WindSpeed10m_V1(modeltools.Method):
-    """Adjust the measured wind speed to a height of 10 meters
-    above the ground.
-
-    For further documentation see method |Adjust_WindSpeed_V1|.
+    """Adjust the measured wind speed to a height of 10 meters above the ground.
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(1)
         >>> measuringheightwindspeed(3.0)
@@ -186,6 +225,9 @@ class Calc_WindSpeed10m_V1(modeltools.Method):
         >>> fluxes.windspeed10m
         windspeed10m(6.15649)
     """
+    SUBMETHODS = (
+        Return_AdjustedWindSpeed_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.MeasuringHeightWindSpeed,
     )
@@ -195,59 +237,19 @@ class Calc_WindSpeed10m_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WindSpeed10m,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         flu = model.sequences.fluxes.fastaccess
-        flu.windspeed10m = model.adjust_windspeed_v1(10.,)
-
-
-class Adjust_WindSpeed_V1(modeltools.Method):
-    """Adjust the measured wind speed to the defined height above the ground.
-
-    Basic equation (`Allen`_ equation 47, modified for higher precision):
-      :math:`AdjustedWindSpeed2m = WindSpeed \\cdot
-      \\frac{ln((newheight-d)/z_0)}
-      {ln((MeasuringHeightWindSpeed-d)/z_0)}` \n
-
-      :math:`d = 2 / 3 \\cdot 0.12` \n
-
-      :math:`z_0 = 0.123 \\cdot 0.12`
-
-    Example:
-
-        >>> from hydpy.models.lland import *
-        >>> parameterstep()
-        >>> nhru(1)
-        >>> measuringheightwindspeed(10.0)
-        >>> inputs.windspeed = 5.0
-        >>> from hydpy import round_
-        >>> round_(model.adjust_windspeed_v1(2.0))
-        3.738763
-        >>> round_(model.adjust_windspeed_v1(0.5))
-        2.571532
-        """
-    CONTROLPARAMETERS = (
-        lland_control.MeasuringHeightWindSpeed,
-    )
-    REQUIREDSEQUENCES = (
-        lland_inputs.WindSpeed,
-    )
-    
-    @staticmethod
-    def __call__(model: modeltools.Model, newheight: float) -> float:
-        con = model.parameters.control.fastaccess
-        inp = model.sequences.inputs.fastaccess
-        d_d = 2. / 3. * .12
-        d_z0 = .123 * .12
-        return (inp.windspeed *
-                (modelutils.log((newheight-d_d)/d_z0) /
-                 modelutils.log((con.measuringheightwindspeed-d_d)/d_z0)))
+        flu.windspeed10m = model.return_adjustedwindspeed_v1(10.)
 
 
 class Calc_EarthSunDistance_V1(modeltools.Method):
     # noinspection PyUnresolvedReferences
     """Calculate the relative inverse distance between the earth and the sun.
+
+    Additional requirements:
+      |Model.idx_sim|
 
     Basic equation (`Allen`_, equation 23):
       :math:`EarthSunDistance = 1 + 0.033 \\cdot cos(
@@ -264,7 +266,7 @@ class Calc_EarthSunDistance_V1(modeltools.Method):
         We define an initialisation period covering both a leap year (2000)
         and a non-leap year (2001):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> from hydpy import pub, round_
         >>> pub.timegrids = '2000-01-01', '2002-01-01', '1d'
@@ -314,22 +316,28 @@ class Calc_EarthSunDistance_V1(modeltools.Method):
     DERIVEDPARAMETERS = (
         lland_derived.DOY,
     )
+    FIXEDPARAMETERS = (
+        lland_fixed.Pi,
+    )
     RESULTSEQUENCES = (
         lland_fluxes.EarthSunDistance,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        flu.earthsundistance = 1. + 0.033 * modelutils.cos(
-            2 * 3.141592653589793 / 366. * (der.doy[model.idx_sim] + 1)
-        )
+        flu.earthsundistance = 1.+0.033*modelutils.cos(
+            2.*fix.pi/366.*(der.doy[model.idx_sim]+1.))
 
 
 class Calc_SolarDeclination_V1(modeltools.Method):
     # noinspection PyUnresolvedReferences
     """Calculate the solar declination.
+
+    Additional requirements:
+      |Model.idx_sim|
 
     Basic equation (`Allen`_, equation 24):
       :math:`SolarDeclination = 0.409 \\cdot sin(
@@ -344,7 +352,7 @@ class Calc_SolarDeclination_V1(modeltools.Method):
         We define an initialisation period covering both a leap year (2000)
         and a non-leap year (2001):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> from hydpy import pub, round_
         >>> pub.timegrids = '2000-01-01', '2002-01-01', '1d'
@@ -392,17 +400,20 @@ class Calc_SolarDeclination_V1(modeltools.Method):
     DERIVEDPARAMETERS = (
         lland_derived.DOY,
     )
+    FIXEDPARAMETERS = (
+        lland_fixed.Pi,
+    )
     RESULTSEQUENCES = (
         lland_fluxes.SolarDeclination,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        flu.solardeclination = .409 * modelutils.sin(
-            2 * 3.141592653589793 / 366 * (der.doy[model.idx_sim] + 1) - 1.39
-        )
+        flu.solardeclination = .409*modelutils.sin(
+            2.*fix.pi/366.*(der.doy[model.idx_sim]+1.)-1.39)
 
 
 class Calc_SunsetHourAngle_V1(modeltools.Method):
@@ -416,7 +427,7 @@ class Calc_SunsetHourAngle_V1(modeltools.Method):
 
         The following calculation agrees with example 8 of `Allen`_:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.doy.shape = 1
         >>> derived.doy(246)
@@ -435,19 +446,21 @@ class Calc_SunsetHourAngle_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SunsetHourAngle,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         flu.sunsethourangle = modelutils.acos(
             -modelutils.tan(der.latituderad) *
-            modelutils.tan(flu.solardeclination)
-        )
+            modelutils.tan(flu.solardeclination))
 
 
 class Calc_SolarTimeAngle_V1(modeltools.Method):
     """Calculate the solar time angle at the midpoint of the current period.
+
+    Additional requirements:
+      |Model.idx_sim|
 
     Basic equations (`Allen`_, equations 31 to 33):
       :math:`SolarTimeAngle =
@@ -471,7 +484,7 @@ class Calc_SolarTimeAngle_V1(modeltools.Method):
 
         >>> from hydpy import pub, round_, UnitTest
         >>> pub.timegrids = '2000-09-03', '2000-09-04', '1h'
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> longitude(15)
         >>> derived.doy.update()
@@ -503,24 +516,27 @@ class Calc_SolarTimeAngle_V1(modeltools.Method):
         lland_derived.SCT,
         lland_derived.UTCLongitude,
     )
+    FIXEDPARAMETERS = (
+        lland_fixed.Pi,
+    )
     RESULTSEQUENCES = (
         lland_fluxes.SolarTimeAngle,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        d_pi = 3.141592653589793
-        d_b = 2. * d_pi * (der.doy[model.idx_sim] - 80.) / 365.
+        d_b = 2.*fix.pi*(der.doy[model.idx_sim]-80.)/365.
         d_sc = (
-            .1645 * modelutils.sin(2. * d_b) -
-            .1255 * modelutils.cos(d_b) -
-            .025 * modelutils.sin(d_b))
-        flu.solartimeangle = d_pi / 12. * (
-            (der.sct[model.idx_sim] / 60. / 60. +
-             (con.longitude - der.utclongitude) / 15. + d_sc) - 12.)
+            .1645*modelutils.sin(2.*d_b) -
+            .1255*modelutils.cos(d_b) -
+            .025*modelutils.sin(d_b))
+        flu.solartimeangle = fix.pi/12. * (
+            (der.sct[model.idx_sim]/60./60. +
+             (con.longitude-der.utclongitude)/15.+d_sc)-12.)
 
 
 class Calc_ExtraterrestrialRadiation_V1(modeltools.Method):
@@ -556,7 +572,7 @@ class Calc_ExtraterrestrialRadiation_V1(modeltools.Method):
         The following calculation agrees with example 8 of `Allen`_
         for daily time steps:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.seconds(60*60*24)
         >>> derived.latituderad(-0.35)
@@ -627,6 +643,9 @@ class Calc_ExtraterrestrialRadiation_V1(modeltools.Method):
         lland_derived.Seconds,
         lland_derived.LatitudeRad,
     )
+    FIXEDPARAMETERS = (
+        lland_fixed.Pi,
+    )
     REQUIREDSEQUENCES = (
         lland_fluxes.SolarTimeAngle,
         lland_fluxes.EarthSunDistance,
@@ -636,34 +655,33 @@ class Calc_ExtraterrestrialRadiation_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.ExtraterrestrialRadiation,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        d_pi = 3.141592653589793
-        d_g = 0.0820 / 60
-        if der.seconds <= 60. * 60.:
-            d_delta = d_pi * der.seconds / 60. / 60. / 24.
+        d_g = 0.0820/60.
+        if der.seconds <= 60.*60.:
+            d_delta = fix.pi*der.seconds/60./60./24.
             d_omega1 = flu.solartimeangle - d_delta
             d_omega2 = flu.solartimeangle + d_delta
             flu.extraterrestrialradiation = max(
-                12. * der.seconds / d_pi * d_g * flu.earthsundistance * (
-                    ((d_omega2 - d_omega1) *
-                     modelutils.sin(der.latituderad) *
-                     modelutils.sin(flu.solardeclination)) +
-                    (modelutils.cos(der.latituderad) *
-                     modelutils.cos(flu.solardeclination) *
-                     (modelutils.sin(d_omega2) - modelutils.sin(d_omega1))
-                     )), 0.)
+                12.*der.seconds/fix.pi*d_g*flu.earthsundistance * (
+                    (d_omega2-d_omega1) *
+                    modelutils.sin(der.latituderad) *
+                    modelutils.sin(flu.solardeclination) +
+                    modelutils.cos(der.latituderad) *
+                    modelutils.cos(flu.solardeclination) *
+                    (modelutils.sin(d_omega2)-modelutils.sin(d_omega1))), 0.)
         else:
             flu.extraterrestrialradiation = (
-                der.seconds/d_pi*d_g*flu.earthsundistance *
-                ((flu.sunsethourangle*modelutils.sin(der.latituderad) *
-                  modelutils.sin(flu.solardeclination)) +
-                 (modelutils.cos(der.latituderad) *
-                  modelutils.cos(flu.solardeclination) *
-                  modelutils.sin(flu.sunsethourangle))))
+                der.seconds/fix.pi*d_g*flu.earthsundistance * (
+                    flu.sunsethourangle*modelutils.sin(der.latituderad) *
+                    modelutils.sin(flu.solardeclination) +
+                    modelutils.cos(der.latituderad) *
+                    modelutils.cos(flu.solardeclination) *
+                    modelutils.sin(flu.sunsethourangle)))
 
 
 class Calc_PossibleSunshineDuration_V1(modeltools.Method):
@@ -688,7 +706,7 @@ class Calc_PossibleSunshineDuration_V1(modeltools.Method):
 
         The following calculation agrees with example 9 of `Allen`_:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.seconds(60*60*24)
         >>> fluxes.sunsethourangle(1.527)
@@ -733,6 +751,9 @@ class Calc_PossibleSunshineDuration_V1(modeltools.Method):
     DERIVEDPARAMETERS = (
         lland_derived.Seconds,
     )
+    FIXEDPARAMETERS = (
+        lland_fixed.Pi,
+    )
     REQUIREDSEQUENCES = (
         lland_fluxes.SolarTimeAngle,
         lland_fluxes.SunsetHourAngle,
@@ -740,23 +761,23 @@ class Calc_PossibleSunshineDuration_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.PossibleSunshineDuration,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        d_pi = 3.141592653589793
-        d_hours = der.seconds / 60. / 60.
-        d_days = d_hours / 24.
+        d_hours = der.seconds/60./60.
+        d_days = d_hours/24.
         if d_hours <= 1.:
             if flu.solartimeangle <= 0.:
-                d_thresh = -flu.solartimeangle - d_pi * d_days
+                d_thresh = -flu.solartimeangle-fix.pi*d_days
             else:
-                d_thresh = flu.solartimeangle - d_pi * d_days
+                d_thresh = flu.solartimeangle-fix.pi*d_days
             flu.possiblesunshineduration = \
-                min(max(12./d_pi*(flu.sunsethourangle-d_thresh), 0.), d_hours)
+                min(max(12./fix.pi*(flu.sunsethourangle-d_thresh), 0.), d_hours)
         else:
-            flu.possiblesunshineduration = 24. / d_pi * flu.sunsethourangle
+            flu.possiblesunshineduration = 24./fix.pi*flu.sunsethourangle
 
 
 class Update_LoggedPossibleSunshineDuration_V1(modeltools.Method):
@@ -768,7 +789,7 @@ class Update_LoggedPossibleSunshineDuration_V1(modeltools.Method):
         moves the three memorised values to the right and stores the
         respective new value on the most left position:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> from hydpy import pub
         >>> parameterstep()
         >>> derived.nmblogentries(3)
@@ -805,9 +826,9 @@ class Update_LoggedPossibleSunshineDuration_V1(modeltools.Method):
     UPDATEDSEQUENCES = (
         lland_logs.LoggedPossibleSunshineDuration,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         log = model.sequences.logs.fastaccess
@@ -820,54 +841,46 @@ class Update_LoggedPossibleSunshineDuration_V1(modeltools.Method):
 class Calc_GlobalRadiation_V1(modeltools.Method):
     """Calculate the global radiation.
 
+    Additional requirements:
+      |Model.idx_sim|
+
     Basic equations:
-      :math:`GlobalRadiation =
-            Extraterrestrialradiation *
-                (AngstromConstant + AngstromFactor *
-                 SunshineDuration/PossibleSunshineDuration))
+      :math:`GlobalRadiation = Extraterrestrialradiation * (AngstromConstant +
+      AngstromFactor * SunshineDuration / PossibleSunshineDuration))`
 
     Example:
 
-        Calculate the |GlobalRadiation| from |SunshineDuration| in January
+        You can define the underlying Angstrom coefficients on a monthly
+        basis to the annual variability in the relationship between sunshine
+        duration and  global radiation:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> from hydpy import pub
         >>> parameterstep()
-        >>> pub.timegrids = '2000-01-01', '2000-01-02', '1h'
+        >>> pub.timegrids = '2000-01-30', '2000-02-03', '1d'
         >>> derived.moy.update()
-        >>> angstromconstant.jan = 0.172
-        >>> angstromfactor.jan = 0.573
+        >>> angstromconstant.jan = 0.1
+        >>> angstromfactor.jan = 0.5
+        >>> angstromconstant.feb = 0.2
+        >>> angstromfactor.feb = 0.6
         >>> inputs.sunshineduration(0.6)
         >>> fluxes.possiblesunshineduration = 1.0
         >>> fluxes.extraterrestrialradiation = 1.7
+        >>> model.idx_sim = 1
         >>> model.calc_globalradiation_v1()
         >>> fluxes.globalradiation
-        globalradiation(0.87686)
-
-        The same |SunshineDuration| leads in June to a lower |GlobalRadiation|
-        than in january
-
-        >>> pub.timegrids = '2000-06-01', '2000-06-02', '1h'
-        >>> derived.moy.update()
-        >>> angstromconstant.jun = 0.160
-        >>> angstromfactor.jun = 0.629
+        globalradiation(0.68)
+        >>> model.idx_sim = 2
         >>> model.calc_globalradiation_v1()
         >>> fluxes.globalradiation
-        globalradiation(0.91358)
+        globalradiation(0.952)
 
-        If sunshineduration is 0 also the global radiation is set
-        to 0.
+        If possible sunshine duration is zero, we generally set global
+        radiation to zero (even if the actual sunshine duration is larger
+        than zero, which might occur as a result of small inconsistencies
+        between measured and calculated input data):
 
         >>> fluxes.possiblesunshineduration = 0.0
-        >>> model.calc_globalradiation_v1()
-        >>> fluxes.globalradiation
-        globalradiation(0.0)
-
-        To prevent inconsistencies the globalradiation is also set to zero if
-        the |ExtraterrestrialRadiation| is zero
-
-        >>> fluxes.possiblesunshineduration = 0.05
-        >>> fluxes.extraterrestrialradiation = 0.0
         >>> model.calc_globalradiation_v1()
         >>> fluxes.globalradiation
         globalradiation(0.0)
@@ -891,27 +904,20 @@ class Calc_GlobalRadiation_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.GlobalRadiation,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         inp = model.sequences.inputs.fastaccess
-        if ((flu.possiblesunshineduration <= 0.0) or
-                (flu.extraterrestrialradiation <= 0.0)):
-            # ToDo: Inkonsistenz:
-            #  possiblesunshineduration/extraterrestrialradiation
-            flu.globalradiation = 0.0
-        else:
+        if flu.possiblesunshineduration > 0.:
             idx = der.moy[model.idx_sim]
-            flu.globalradiation = (
-                flu.extraterrestrialradiation *
-                (con.angstromconstant[idx] + con.angstromfactor[idx] *
-                 inp.sunshineduration/flu.possiblesunshineduration))
-        # TODO: Korrektur aus SOSD in GLob übernehmen?
-        # TODO: Diskrepanzen possiblesunshineduration/extraterrestrialradiation
-        # TODO: Sunshineduration > Possiblesunshineduration
+            flu.globalradiation = flu.extraterrestrialradiation * (
+                con.angstromconstant[idx] + con.angstromfactor[idx] *
+                inp.sunshineduration/flu.possiblesunshineduration)
+        else:
+            flu.globalradiation = 0.
 
 
 class Update_LoggedSunshineDuration_V1(modeltools.Method):
@@ -920,10 +926,10 @@ class Update_LoggedSunshineDuration_V1(modeltools.Method):
     Example:
 
         The following example shows that each new method call successively
-        moves the three memorized values to the right and stores the
+        moves the three memorised values to the right and stores the
         respective new value on the most left position:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.nmblogentries(3)
         >>> logs.loggedsunshineduration.shape = 3
@@ -954,9 +960,9 @@ class Update_LoggedSunshineDuration_V1(modeltools.Method):
     UPDATEDSEQUENCES = (
         lland_logs.LoggedSunshineDuration,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         inp = model.sequences.inputs.fastaccess
         log = model.sequences.logs.fastaccess
@@ -976,7 +982,7 @@ class Calc_ET0_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
         >>> nhru(3)
@@ -1002,9 +1008,9 @@ class Calc_ET0_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.ET0,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         inp = model.sequences.inputs.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -1032,7 +1038,7 @@ class Calc_ET0_WET0_V1(modeltools.Method):
         Prepare four hydrological response units with different value
         combinations of parameters |KE| and |WfET0|:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
         >>> nhru(4)
@@ -1075,9 +1081,9 @@ class Calc_ET0_WET0_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.ET0,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         inp = model.sequences.inputs.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -1112,7 +1118,7 @@ class Calc_EvPo_V1(modeltools.Method):
         two HRUs, one of primarily consisting of arable land and the other
         one of deciduous forests:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(2)
         >>> lnk(ACKER, LAUBW)
@@ -1168,9 +1174,9 @@ class Calc_EvPo_V1(modeltools.Method):
         lland_fluxes.EvPo,
         lland_fluxes.EvPoWater,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -1197,9 +1203,9 @@ class Calc_NBes_Inzp_V1(modeltools.Method):
 
     Examples:
 
-        Initialize five HRUs with different land usages:
+        Initialise five HRUs with different land usages:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(5)
         >>> lnk(SIED_D, FEUCHT, GLETS, FLUSS, SEE)
@@ -1284,9 +1290,9 @@ class Calc_NBes_Inzp_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.NBes,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -1297,10 +1303,10 @@ class Calc_NBes_Inzp_V1(modeltools.Method):
                 sta.inzp[k] = 0.
             else:
                 flu.nbes[k] = (
-                    max(flu.nkor[k] + sta.inzp[k] -
-                        der.kinz[con.lnk[k] - 1, der.moy[model.idx_sim]], 0.)
+                    max(flu.nkor[k]+sta.inzp[k] -
+                        der.kinz[con.lnk[k]-1, der.moy[model.idx_sim]], 0.)
                 )
-                sta.inzp[k] += flu.nkor[k] - flu.nbes[k]
+                sta.inzp[k] += flu.nkor[k]-flu.nbes[k]
 
 
 class Calc_SN_Ratio_V1(modeltools.Method):
@@ -1308,18 +1314,18 @@ class Calc_SN_Ratio_V1(modeltools.Method):
 
     Examples:
 
-        In the first example, the threshold temperature of seven hydrological
-        response units is 0 °C and the corresponding temperature interval of
-        mixed precipitation 2 °C:
+        In the first example, the threshold temperature of seven
+        hydrological response units is 0 °C and the temperature interval
+        of mixed precipitation 2 °C:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(7)
         >>> tgr(1.0)
         >>> tsp(2.0)
 
         The value of |SN_Ratio| is zero above 1 °C and 1 below -1 °C.  Between
-        these temperature values, |SN_Ratio| decreases linearly:
+        these temperature values |SN_Ratio| decreases linearly:
 
         >>> fluxes.nkor = 4.0
         >>> fluxes.tkor = -9.0, 0.0, 0.5, 1.0, 1.5, 2.0, 11.0
@@ -1329,7 +1335,7 @@ class Calc_SN_Ratio_V1(modeltools.Method):
 
         Note the special case of a zero temperature interval.  With the
         actual temperature being equal to the threshold temperature, the
-        the value of `sbes` is zero:
+        the value of |SN_Ratio| is zero:
 
         >>> tsp(0.0)
         >>> model.calc_sn_ratio_v1()
@@ -1349,7 +1355,7 @@ class Calc_SN_Ratio_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         aid = model.sequences.aides.fastaccess
@@ -1359,8 +1365,8 @@ class Calc_SN_Ratio_V1(modeltools.Method):
             elif flu.tkor[k] <= (con.tgr[k]-con.tsp[k]/2.):
                 aid.sn_ratio[k] = 1.
             else:
-                aid.sn_ratio[k] = (
-                    ((con.tgr[k]+con.tsp[k]/2.)-flu.tkor[k])/con.tsp[k])
+                aid.sn_ratio[k] = \
+                    ((con.tgr[k]+con.tsp[k]/2.)-flu.tkor[k])/con.tsp[k]
 
 
 class Calc_SKor_V1(modeltools.Method):
@@ -1371,7 +1377,7 @@ class Calc_SKor_V1(modeltools.Method):
 
     Examples:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
         >>> aides.sn_ratio = 0.0, 0.5, 1.0
@@ -1390,9 +1396,9 @@ class Calc_SKor_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SKor,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         aid = model.sequences.aides.fastaccess
@@ -1416,7 +1422,7 @@ class Calc_F2SIMax_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(5)
         >>> fluxes.tkor(-5.0, -3.0, -2.0, -1.0,  0.0)
@@ -1434,9 +1440,9 @@ class Calc_F2SIMax_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.F2SIMax,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
@@ -1457,7 +1463,7 @@ class Calc_SInzpCap_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
         >>> lnk(ACKER, LAUBW, NADELW)
@@ -1492,9 +1498,9 @@ class Calc_SInzpCap_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SInzpCap,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -1504,163 +1510,165 @@ class Calc_SInzpCap_V1(modeltools.Method):
                 flu.f2simax[k])
 
 
-class Calc_F2SIRate_V1(modeltools.Method):
-    """
-    Factor for calculation of snow interception capacity.
-
-    Basic equation:
-       :math:`F2SIRate =
-
-    Example:
-
-        >>> from hydpy.models.lland import *
-        >>> parameterstep('1d')
-        >>> nhru(5)
-        >>> p3sirate(0.003)
-        >>> states.stinz = 0.0, 0.5, 1.0, 5.0, 10.0
-        >>> model.calc_f2sirate()
-        >>> fluxes.f2sirate
-        f2sirate(0.0, 0.0015, 0.003, 0.015, 0.03)
-    """
-
-    CONTROLPARAMETERS = (
-        lland_control.NHRU,
-        lland_control.P3SIRate,
-    )
-    REQUIREDSEQUENCES = (
-        lland_states.STInz,
-    )
-    RESULTSEQUENCES = (
-        lland_fluxes.F2SIRate,
-    )
-    
-    @staticmethod
-    def __call__(model: modeltools.Model) -> None:
-        con = model.parameters.control.fastaccess
-        flu = model.sequences.fluxes.fastaccess
-        sta = model.sequences.states.fastaccess
-        for k in range(con.nhru):
-            flu.f2sirate[k] = sta.stinz[k] * con.p3sirate
-
-
-class Calc_SInzpRate_V1(modeltools.Method):
-    """
-    Snow interception rate
-
-    Basic equation:
-       :math:`SInzpRate = min(F1SIRate + F2SIRate; 1)`
-
-    Example:
-        >>> from hydpy.models.lland import *
-        >>> parameterstep('1d')
-        >>> nhru(3)
-        >>> derived.f1sirate.acker_jan = 0.22
-        >>> derived.f1sirate.laubw_jan = 0.30
-        >>> derived.f1sirate.nadelw_jan = 0.32
-        >>> fluxes.f2sirate = 0.0015, 0.003, 0.015
-    """
-    CONTROLPARAMETERS = (
-        lland_control.NHRU,
-    )
-    DERIVEDPARAMETERS = (
-        lland_derived.F1SIRate,
-    )
-    REQUIREDSEQUENCES = (
-        lland_fluxes.F2SIRate,
-    )
-    RESULTSEQUENCES = (
-        lland_fluxes.SInzpRate,
-    )
-    
-    @staticmethod
-    def __call__(model: modeltools.Model) -> None:
-        con = model.parameters.control.fastaccess
-        der = model.parameters.derived.fastaccess
-        flu = model.sequences.fluxes.fastaccess
-        # ToDo: Stimmt 1 min oder max?
-        for k in range(con.nhru):
-            flu.sinzprate[k] = min(
-                der.f1sirate[con.lnk[k] - 1, der.moy[model.idx_sim]] +
-                flu.f2sirate[k], 1)
-
-
-class Calc_NBes_SInz_V1(modeltools.Method):
-    """Update interception storage.
-
-    Example:
-
-        >>> from hydpy.models.lland import *
-        >>> parameterstep('1d')
-        >>> nhru(4)
-        >>> lnk(ACKER, NADELW, NADELW, NADELW)
-        >>> # states.sinz()
-        >>> # states.stinz()
-        >>> # fluxes.sinzcap()
-        >>> # fluxes.sinzrate()
-        >>> # fluxes.nkor()
-        >>> # model.calc_nbes_sinz()
-        >>> # fluxes.sbes
-        >>> # fluxes.nbes
-        >>> # states.stinz
-        >>> # states.sinz
-    """
-
-    CONTROLPARAMETERS = (
-        lland_control.NHRU,
-        lland_control.Lnk,
-    )
-    REQUIREDSEQUENCES = (
-        lland_fluxes.SInzpRate,
-        lland_fluxes.NKor,
-        lland_fluxes.SInzpCap,
-        lland_aides.SN_Ratio,
-    )
-    UPDATEDSEQUENCES = (
-        lland_states.SInz,
-        lland_states.STInz,
-    )
-    RESULTSEQUENCES = (
-        lland_fluxes.NBes,
-        lland_fluxes.SBes,
-    )
-    
-    @staticmethod
-    def __call__(model: modeltools.Model) -> None:
-        con = model.parameters.control.fastaccess
-        der = model.parameters.derived.fastaccess
-        flu = model.sequences.fluxes.fastaccess
-        aid = model.sequences.aides.fastaccess
-        sta = model.sequences.states.fastaccess
-        # ToDo
-        c_temp = 1
-        # for k in range(con.nhru):
-        #     if con.lnk[k] in (WASSER, FLUSS, SEE):
-        #         sta.sinz[k] = 0.
-        #     elif con.lnk[k] == NADELW:
-        #         if flu.nkor[k] > flu.sinzprate[k]:
-        #             d_max = flu.sinzprate[k]
-        #             d_besrate = flu.nkor[k] - flu.sinzprate[k]
-        #         else:
-        #             d_max = flu.nkor[k]
-        #             d_besrate = 0
-        #         d_cap = flu.sinzpcap[con.lnk[k] - 1, der.moy[model.idx_sim]]
-        #
-        #         flu.nbes[k] = max(d_max + sta.sinz[k] - d_cap, 0.) + d_besrate
-        #         flu.sbes[k] = aid.sn_ratio[k] * flu.nbes[k]
-        #         d_ninz = flu.nkor[k] - flu.nbes[k]
-        #         d_sinz = aid.sn_ratio[k] * d_ninz
-        #         sta.sinz[k] += d_ninz
-        #         sta.stinz[k] += d_sinz
-        #         d_nbes = max(sta.sinz[k] - con.pwmax[k] * sta.stinz[k], 0.)
-        #         flu.nbes[k] += d_nbes
-        #         sta.sinz[k] -= d_nbes
+# class Calc_F2SIRate_V1(modeltools.Method):
+#     """
+#     Factor for calculation of snow interception capacity.
+#
+#     Basic equation:
+#        :math:`F2SIRate =
+#
+#     Example:
+#
+#         >>> from hydpy.lland import *
+#         >>> parameterstep('1d')
+#         >>> nhru(5)
+#         >>> p3sirate(0.003)
+#         >>> states.stinz = 0.0, 0.5, 1.0, 5.0, 10.0
+#         >>> model.calc_f2sirate()
+#         >>> fluxes.f2sirate
+#         f2sirate(0.0, 0.0015, 0.003, 0.015, 0.03)
+#     """
+#
+#     CONTROLPARAMETERS = (
+#         lland_control.NHRU,
+#         lland_control.P3SIRate,
+#     )
+#     REQUIREDSEQUENCES = (
+#         lland_states.STInz,
+#     )
+#     RESULTSEQUENCES = (
+#         lland_fluxes.F2SIRate,
+#     )
+#
+#     @staticmethod
+#     def __call__(model: 'lland.Model') -> None:
+#         con = model.parameters.control.fastaccess
+#         flu = model.sequences.fluxes.fastaccess
+#         sta = model.sequences.states.fastaccess
+#         for k in range(con.nhru):
+#             flu.f2sirate[k] = sta.stinz[k] * con.p3sirate
+#
+#
+# class Calc_SInzpRate_V1(modeltools.Method):
+#     """
+#     Snow interception rate
+#
+#     Basic equation:
+#        :math:`SInzpRate = min(F1SIRate + F2SIRate; 1)`
+#
+#     Example:
+#         >>> from hydpy.lland import *
+#         >>> parameterstep('1d')
+#         >>> nhru(3)
+#         >>> derived.f1sirate.acker_jan = 0.22
+#         >>> derived.f1sirate.laubw_jan = 0.30
+#         >>> derived.f1sirate.nadelw_jan = 0.32
+#         >>> fluxes.f2sirate = 0.0015, 0.003, 0.015
+#     """
+#     CONTROLPARAMETERS = (
+#         lland_control.NHRU,
+#     )
+#     DERIVEDPARAMETERS = (
+#         lland_derived.F1SIRate,
+#     )
+#     REQUIREDSEQUENCES = (
+#         lland_fluxes.F2SIRate,
+#     )
+#     RESULTSEQUENCES = (
+#         lland_fluxes.SInzpRate,
+#     )
+#
+#     @staticmethod
+#     def __call__(model: 'lland.Model') -> None:
+#         con = model.parameters.control.fastaccess
+#         der = model.parameters.derived.fastaccess
+#         flu = model.sequences.fluxes.fastaccess
+#         # ToDo: Stimmt 1 min oder max?
+#         for k in range(con.nhru):
+#             flu.sinzprate[k] = min(
+#                 der.f1sirate[con.lnk[k] - 1, der.moy[model.idx_sim]] +
+#                 flu.f2sirate[k], 1)
+#
+#
+# class Calc_NBes_SInz_V1(modeltools.Method):
+#     """Update interception storage.
+#
+#     Example:
+#
+#         >>> from hydpy.lland import *
+#         >>> parameterstep('1d')
+#         >>> nhru(4)
+#         >>> lnk(ACKER, NADELW, NADELW, NADELW)
+#         >>> # states.sinz()
+#         >>> # states.stinz()
+#         >>> # fluxes.sinzcap()
+#         >>> # fluxes.sinzrate()
+#         >>> # fluxes.nkor()
+#         >>> # model.calc_nbes_sinz()
+#         >>> # fluxes.sbes
+#         >>> # fluxes.nbes
+#         >>> # states.stinz
+#         >>> # states.sinz
+#     """
+#
+#     CONTROLPARAMETERS = (
+#         lland_control.NHRU,
+#         lland_control.Lnk,
+#     )
+#     REQUIREDSEQUENCES = (
+#         lland_fluxes.SInzpRate,
+#         lland_fluxes.NKor,
+#         lland_fluxes.SInzpCap,
+#         lland_aides.SN_Ratio,
+#     )
+#     UPDATEDSEQUENCES = (
+#         lland_states.SInz,
+#         lland_states.STInz,
+#     )
+#     RESULTSEQUENCES = (
+#         lland_fluxes.NBes,
+#         lland_fluxes.SBes,
+#     )
+#
+#     @staticmethod
+#     def __call__(model: 'lland.Model') -> None:
+#         con = model.parameters.control.fastaccess
+#         der = model.parameters.derived.fastaccess
+#         flu = model.sequences.fluxes.fastaccess
+#         aid = model.sequences.aides.fastaccess
+#         sta = model.sequences.states.fastaccess
+#         for k in range(con.nhru):
+#             if con.lnk[k] in (WASSER, FLUSS, SEE):
+#                 sta.sinz[k] = 0.
+#             elif con.lnk[k] == NADELW:
+#                 if flu.nkor[k] > flu.sinzprate[k]:
+#                     d_max = flu.sinzprate[k]
+#                     d_besrate = flu.nkor[k] - flu.sinzprate[k]
+#                 else:
+#                     d_max = flu.nkor[k]
+#                     d_besrate = 0
+#                 d_cap = flu.sinzpcap[con.lnk[k] - 1, der.moy[model.idx_sim]]
+#
+#                 flu.nbes[k] = max(d_max + sta.sinz[k] - d_cap, 0.) + d_besrate
+#                 flu.sbes[k] = aid.sn_ratio[k] * flu.nbes[k]
+#                 d_ninz = flu.nkor[k] - flu.nbes[k]
+#                 d_sinz = aid.sn_ratio[k] * d_ninz
+#                 sta.sinz[k] += d_ninz
+#                 sta.stinz[k] += d_sinz
+#                 d_nbes = max(sta.sinz[k] - con.pwmax[k] * sta.stinz[k], 0.)
+#                 flu.nbes[k] += d_nbes
+#                 sta.sinz[k] -= d_nbes
 
 
 class Calc_SBes_V1(modeltools.Method):
     """Calculate the frozen part of stand precipitation.
 
+    Basic equation:
+      :math:`SBes = SN_Ratio \\cdot NBes`
+
     Example:
-        >>> from hydpy.models.lland import *
+
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(1)
         >>> fluxes.nbes(10.0)
@@ -1680,14 +1688,14 @@ class Calc_SBes_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SBes,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         aid = model.sequences.aides.fastaccess
         for k in range(con.nhru):
-            flu.sbes[k] = aid.sn_ratio[k] * flu.nbes[k]
+            flu.sbes[k] = aid.sn_ratio[k]*flu.nbes[k]
 
 
 class Calc_WATS_V1(modeltools.Method):
@@ -1698,11 +1706,11 @@ class Calc_WATS_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
         >>> lnk(FLUSS, ACKER)
-        >>> fluxes.sbes(2.0)
+        >>> fluxes.sbes = 2.0
         >>> states.wats = 5.5
         >>> model.calc_wats_v1()
         >>> states.wats
@@ -1719,9 +1727,9 @@ class Calc_WATS_V1(modeltools.Method):
     UPDATEDSEQUENCES = (
         lland_states.WATS,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -1733,22 +1741,22 @@ class Calc_WATS_V1(modeltools.Method):
 
 
 class Calc_WaDa_WAeS_V1(modeltools.Method):
-    """Add as much precipitation to the snow cover as it is able to hold.
+    """Add as much liquid precipitation to the snow cover as it is able to hold.
 
     Basic equations:
       :math:`\\frac{dWAeS}{dt} = NBes - WaDa`
 
       :math:`WAeS \\leq PWMax \\cdot WATS`
 
-    Examples:
+    Example:
 
         For simplicity, the threshold parameter |PWMax| is set to a value
-        of two for each of the six initialized HRUs.  Thus, snow cover can
-        hold as much liquid water as it contains frozen water.  Stand
-        precipitation is also always set to the same value, but we vary the
-        initial conditions of the snow cover:
+        of two for each of the six initialized HRUs.  Thus, snow cover
+        can hold as much liquid water as it contains frozen water.
+        Stand precipitation is also always set to the same value,
+        but we vary the initial conditions of the snow cover:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(6)
         >>> lnk(FLUSS, SEE, ACKER, ACKER, ACKER, ACKER)
@@ -1784,9 +1792,9 @@ class Calc_WaDa_WAeS_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WaDa,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -1808,25 +1816,19 @@ class Calc_WGTF_V1(modeltools.Method):
 
     Examples:
 
-        Initialize seven HRUs with identical degree-day factors and
-        temperature thresholds, but different combinations of land use
-        and air temperature:
+        Initialise six hydrological response units with identical degree-day
+        factors and temperature thresholds, but different combinations of
+        land use and air temperature:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
-        >>> nhru(7)
-        >>> lnk(ACKER, LAUBW, FLUSS, SEE, ACKER, ACKER, ACKER)
+        >>> nhru(6)
+        >>> lnk(FLUSS, SEE, LAUBW, ACKER, ACKER, LAUBW)
         >>> gtf(5.0)
         >>> treft(0.0)
         >>> trefn(1.0)
-        >>> fluxes.tkor = 2.0, 2.0, 2.0, 2.0, -1.0, 0.0, 1.0
-
-        Compared to most other LARSIM parameters, the specific heat capacity
-        and melt heat capacity of water can be seen as fixed properties
-        (0.334 MJ/kg):
-
-        >>> rschmelz(0.334)
+        >>> fluxes.tkor = 1.0, 1.0, 1.0, 1.0, 0.0, -1.0
 
         Note that the values of the degree-day factor are only half
         as much as the given value, due to the simulation step size
@@ -1834,32 +1836,29 @@ class Calc_WGTF_V1(modeltools.Method):
 
         >>> gtf
         gtf(5.0)
-        >>> gtf.values
-        array([ 2.5,  2.5,  2.5,  2.5,  2.5,  2.5,  2.5])
+        >>> from hydpy import print_values
+        >>> print_values(gtf.values)
+        2.5, 2.5, 2.5, 2.5, 2.5, 2.5
 
-        After performing the calculation, one can see that the potential
-        melting rate is identical for the first two HRUs (|ACKER| and
-        |LAUBW|).  The land use class results in no difference, except for
-        water areas (third and forth HRU, |FLUSS| and |SEE|), where no
-        potential melt needs to be calculated.  The last three HRUs (again
-        |ACKER|) show the usual behaviour of the degree day method, when the
-        actual temperature is below (fourth HRU), equal to (fifth HRU) or
-        above (sixths zone) the threshold temperature.  Additionally, the
-        first two zones show the influence of the additional energy intake
-        due to "warm" precipitation.  Obviously, this additional term is
-        quite negligible for common parameterizations, even if lower
-        values for the separate threshold temperature |TRefT| would be
-        taken into account:
+        The results of the first four hydrological response units show
+        that |WGTF| is generally zero for water areas (here, |FLUSS| and
+        |SEE|) in principally identical for all other land-use type
+        (here, |ACKER| and |LAUBW|).  The results of the last three
+        response units show the expectable linear relationship.  However,
+        note that that |WGTF| is allowed to be negative:
 
         >>> model.calc_wgtf_v1()
         >>> fluxes.wgtf
-        wgtf(1.67, 1.67, 1.67, 1.67, -0.835, 0.0, 0.835)
+        wgtf(0.0, 0.0, 0.835, 0.835, 0.0, -0.835)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
+        lland_control.Lnk,
         lland_control.GTF,
         lland_control.TRefT,
-        lland_control.RSchmelz,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.RSchmelz,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.TKor,
@@ -1867,21 +1866,25 @@ class Calc_WGTF_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WGTF,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
-            flu.wgtf[k] = con.gtf[k]*(flu.tkor[k]-con.treft[k])*con.rschmelz
+            if con.lnk[k] in (WASSER, FLUSS, SEE):
+                flu.wgtf[k] = 0.
+            else:
+                flu.wgtf[k] = con.gtf[k]*(flu.tkor[k]-con.treft[k])*fix.rschmelz
 
 
 class Calc_WNied_V1(modeltools.Method):
-    """Calculate the heat flux due to precipitation falling on a snow layer.
+    """Calculate the heat flux into the snow layer due to the total amount
+    of ingoing precipitation.
 
-    We assume that the temperature of precipitation equals air temperature
-    and |TRefN| equals the reference temperature to define whether the energy
-    input is positive or negative (normally 0°C).
+    Method |Calc_WNied_V1| assumes that the temperature of precipitation
+    equals air temperature minus |TRefN|.
 
     Basic equation:
       :math:`WNied = (TKor - TRefN) \\cdot
@@ -1889,25 +1892,27 @@ class Calc_WNied_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
-        >>> nhru(4)
-        >>> cpwasser(0.0041868)
-        >>> cpeis(0.00206)
+        >>> nhru(5)
+        >>> lnk(ACKER, ACKER, ACKER, ACKER, WASSER)
+        >>> trefn(-2.0, 2.0, 2.0, 2.0, 2.0)
         >>> fluxes.tkor(1.0)
-        >>> trefn(-2.0, 2.0, 2.0, 2.0)
         >>> fluxes.nbes = 10.0
-        >>> fluxes.sbes = 0.0, 0.0, 5.0, 10.0
+        >>> fluxes.sbes = 0.0, 0.0, 5.0, 10.0, 10.0
         >>> model.calc_wnied_v1()
         >>> fluxes.wnied
-        wnied(0.125604, -0.041868, -0.031234, -0.0206)
+        wnied(0.125604, -0.041868, -0.031384, -0.0209, 0.0)
         """
 
     CONTROLPARAMETERS = (
         lland_control.NHRU,
+        lland_control.Lnk,
         lland_control.TRefN,
-        lland_control.CPWasser,
-        lland_control.CPEis,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.CPWasser,
+        lland_fixed.CPEis,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.TKor,
@@ -1918,50 +1923,59 @@ class Calc_WNied_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
-            flu.wnied[k] = (
-                (flu.tkor[k]-con.trefn[k]) *
-                (con.cpeis*flu.sbes[k]+con.cpwasser*(flu.nbes[k]-flu.sbes[k]))
-            )
+            if con.lnk[k] in (WASSER, FLUSS, SEE):
+                flu.wnied[k] = 0.
+            else:
+                d_ice = fix.cpeis*flu.sbes[k]
+                d_water = fix.cpwasser*(flu.nbes[k]-flu.sbes[k])
+                flu.wnied[k] = (flu.tkor[k]-con.trefn[k])*(d_ice+d_water)
 
 
-class Calc_WNied_V2(modeltools.Method):
-    """Calculate the heat flux due to precipitation falling on a snow layer.
+class Calc_WNied_ESnow_V1(modeltools.Method):
+    """Calculate the heat flux into the snow layer due to the amount
+    of precipitation actually hold by the snow layer.
 
-    We assume that the temperature of precipitation equals air temperature.
-    The same holds for the temperature of the fraction of precipitation not
-    hold by the snow layer (in other words: no temperature mixing occurs).
-    In contrast to method |Calc_WNied_V1|, method |Calc_WNied_V1| does
-    not use parameter |TRefN|. Hence, the "energy input threshold" is
-    effectively always 0 °C.
+    Method |Calc_WNied_V1| assumes that the temperature of precipitation
+    equals air temperature minus |TRefN|.  The same holds for the
+    temperature of the fraction of precipitation not hold by the snow
+    layer (in other words: no temperature mixing occurs).
 
     Basic equation:
-      :math:`WNied = TKor \\cdot
+      :math:`WNied = (TKor-TRefN) \\cdot
       (CPEis \\cdot SBes + CPWasser \\cdot (NBes - SBes - WaDa))`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
-        >>> nhru(5)
-        >>> cpwasser(0.0041868)
-        >>> cpeis(0.00206)
-        >>> fluxes.tkor = 3.0, -1.0, -1.0, -1.0, -1.0
+        >>> nhru(6)
+        >>> lnk(ACKER, ACKER, ACKER, ACKER, ACKER, WASSER)
+        >>> trefn(1.0)
+        >>> states.esnow = 0.02
+        >>> fluxes.tkor = 4.0, 0.0, 0.0, 0.0, 0.0, 0.0
         >>> fluxes.nbes = 10.0
-        >>> fluxes.sbes = 0.0, 0.0, 5.0, 10.0, 5.0
-        >>> fluxes.wada = 0.0, 0.0, 0.0, 0.0, 5.0
-        >>> model.calc_wnied_v2()
+        >>> fluxes.sbes = 0.0, 0.0, 5.0, 10.0, 5.0, 5.0
+        >>> fluxes.wada = 0.0, 0.0, 0.0, 0.0, 5.0, 5.0
+        >>> model.calc_wnied_esnow_v1()
         >>> fluxes.wnied
-        wnied(0.125604, -0.041868, -0.031234, -0.0206, -0.0103)
+        wnied(0.125604, -0.041868, -0.031384, -0.0209, -0.01045, 0.0)
+        >>> states.esnow
+        esnow(0.145604, -0.021868, -0.011384, -0.0009, 0.00955, 0.0)
         """
 
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.CPWasser,
-        lland_control.CPEis,
+        lland_control.Lnk,
+        lland_control.TRefN,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.CPWasser,
+        lland_fixed.CPEis,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.TKor,
@@ -1969,77 +1983,58 @@ class Calc_WNied_V2(modeltools.Method):
         lland_fluxes.SBes,
         lland_fluxes.WaDa,
     )
-    RESULTSEQUENCES = (
-        lland_fluxes.WNied,
-    )
-    
-    @staticmethod
-    def __call__(model: modeltools.Model) -> None:
-        con = model.parameters.control.fastaccess
-        flu = model.sequences.fluxes.fastaccess
-        for k in range(con.nhru):
-            flu.wnied[k] = (
-                flu.tkor[k] *
-                (con.cpeis*flu.sbes[k] +
-                 con.cpwasser*(flu.nbes[k]-flu.sbes[k]-flu.wada[k]))
-            )
-
-
-class Update_ESnow_V1(modeltools.Method):
-    """Update the heat content of the snow layer regarding the thermal
-    energy of precipitation.
-
-    Basic equation:
-      :math:`\\frac{ESnow}{dt} = WNied`
-
-    Example:
-
-        >>> from hydpy.models.lland import *
-        >>> parameterstep('1d')
-        >>> nhru(3)
-        >>> states.waes =  1.0, 1.0, 0.0
-        >>> states.esnow = 0.0, 1.0, 2.0
-        >>> fluxes.wnied = -1.0, 1.0, 1.0
-        >>> model.update_esnow_v1()
-        >>> states.esnow
-        esnow(-1.0, 2.0, 0.0)
-    """
-    CONTROLPARAMETERS = (
-        lland_control.NHRU,
-    )
-    REQUIREDSEQUENCES = (
-        lland_states.WAeS,
-        lland_fluxes.WNied,
-    )
     UPDATEDSEQUENCES = (
         lland_states.ESnow,
     )
+    RESULTSEQUENCES = (
+        lland_fluxes.WNied,
+    )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if sta.waes[k] > 0.:
-                sta.esnow[k] += flu.wnied[k]
-            else:
+            if con.lnk[k] in (WASSER, FLUSS, SEE):
+                flu.wnied[k] = 0.
                 sta.esnow[k] = 0.
-            # ToDo: esnow = nan?
-            # if modelutils.isnan(sta.esnow[k]):
-            #     sta.esnow[k] = 0.
-            # else:
-            #     sta.esnow[k] += flu.wnied[k]
+            else:
+                d_ice = fix.cpeis*flu.sbes[k]
+                d_water = fix.cpwasser*(flu.nbes[k]-flu.sbes[k]-flu.wada[k])
+                flu.wnied[k] = (flu.tkor[k]-con.trefn[k])*(d_ice+d_water)
+                sta.esnow[k] += flu.wnied[k]
 
 
-class Calc_SaturationVapourPressure_V1(modeltools.Method):
-    """Calculate the saturation vapour pressure.
+class Return_SaturationVapourPressure_V1(modeltools.Method):
+    """Calculate the saturation vapour pressure over an arbitrary surface
+    for the given temperature and return it.
 
-    For further documentation see |Calc_SaturationVapourPressure_Single_V1|.
+    Basic equation (Allen, equation 11, modified):
+      :math:`0.6108 \\cdot \\exp(\\frac{17.08085 \\cdot TKor}{TKor + 234.175})`
+
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
+        >>> parameterstep()
+        >>> from hydpy import round_
+        >>> round_(model.return_saturationvapourpressure_v1(10.0))
+        1.229426
+    """
+
+    @staticmethod
+    def __call__(model: 'lland.Model', temperature: float) -> float:
+        return .6108*modelutils.exp(17.08085*temperature/(temperature+234.175))
+
+
+class Calc_SaturationVapourPressure_V1(modeltools.Method):
+    """Calculate the saturation vapour pressure over arbitrary surfaces.
+
+    Example:
+
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(3)
         >>> fluxes.tkor(-10.0, 0.0, 10.0)
@@ -2047,6 +2042,9 @@ class Calc_SaturationVapourPressure_V1(modeltools.Method):
         >>> fluxes.saturationvapourpressure
         saturationvapourpressure(0.285096, 0.6108, 1.229426)
     """
+    SUBMETHODS = (
+        Return_SaturationVapourPressure_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
@@ -2056,64 +2054,26 @@ class Calc_SaturationVapourPressure_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SaturationVapourPressure,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         flu = model.sequences.fluxes.fastaccess
         con = model.parameters.control.fastaccess
         for k in range(con.nhru):
             flu.saturationvapourpressure[k] = \
-                model.calc_saturationvapourpressure_single_v1(flu.tkor[k])
-            
-
-class Calc_SaturationVapourPressure_Single_V1(modeltools.Method):
-    """Calculate the saturation vapour pressure for a given temperature.
-    The used formula is considered for the calculation of saturation vapour
-    pressure over water surfaces.
-
-    Basic equation (`Allen`_):
-      :math:`SaturationVapourPressure = 0.6108 \\cdot
-      \\exp(\\frac{17.08085 \\cdot TKor}{TKor + 234.175})`
-
-    # ToDo: fester Begriff für "Single"
-
-    |Calc_SaturationVapourPressure_Single_V1| is a 'Single' method which means
-    that this method cannot be directly used by an application model. It needs
-    to be called by an other method which hands the actual |NHRU|.
-
-    Additionally this method needs a temperature as parameter and returns the
-    saturation vapour pressure for the given temperature for the current |NHRU|.
-
-    The following example shows how this method is used in the method
-    |Calc_SaturationVapourPressure_V1| which uses the air temperature as
-    parameter.
-
-    Example:
-
-        >>> from hydpy.models.lland import *
-        >>> parameterstep()
-        >>> nhru(3)
-        >>> fluxes.tkor(-10.0, 0.0, 10.0)
-        >>> model.calc_saturationvapourpressure_v1()
-        >>> fluxes.saturationvapourpressure
-        saturationvapourpressure(0.285096, 0.6108, 1.229426)
-    """
-    
-    @staticmethod
-    def __call__(model: modeltools.Model, t: float) -> float:
-        return .6108*modelutils.exp(17.08085 * t / (t + 234.175))
+                model.return_saturationvapourpressure_v1(flu.tkor[k])
 
 
 class Calc_SaturationVapourPressureSlope_V1(modeltools.Method):
     """Calculate the slope of the saturation vapour pressure curve.
 
-    Basic equation (`Allen`_, equation 13):
+    Basic equation (`Allen`_, equation 13, modified):
       :math:`SaturationVapourPressureSlope = 4098 \\cdot
       \\frac{SaturationVapourPressure}{(TKor+237.3)^2}`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(3)
         >>> fluxes.tkor(-10.0, 0.0, 10.0)
@@ -2132,9 +2092,9 @@ class Calc_SaturationVapourPressureSlope_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SaturationVapourPressureSlope,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
@@ -2142,14 +2102,40 @@ class Calc_SaturationVapourPressureSlope_V1(modeltools.Method):
                 4098.*flu.saturationvapourpressure[k]/(flu.tkor[k]+237.3)**2
 
 
-class Calc_ActualVapourPressure_V1(modeltools.Method):
-    """Calculate the actual vapour pressure.
+class Return_ActualVapourPressure_V1(modeltools.Method):
+    """Calculate the actual vapour pressure for the given saturation vapour
+    pressure and return it.
 
-    For further documentation see |Calc_ActualVapourPressure_Single_V1|
+    Basic equation (`Allen`_, equation 19, modified):
+      :math:`SaturationVapourPressure \\cdot RelativeHumidity / 100`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
+        >>> parameterstep('1d')
+        >>> nhru(3)
+        >>> inputs.relativehumidity = 60.0
+        >>> from hydpy import round_
+        >>> round_(model.return_actualvapourpressure_v1(2.0))
+        1.2
+    """
+    REQUIREDSEQUENCES = (
+        lland_inputs.RelativeHumidity,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model', saturationvapourpressure: float) \
+            -> float:
+        inp = model.sequences.inputs.fastaccess
+        return saturationvapourpressure * inp.relativehumidity / 100.
+
+
+class Calc_ActualVapourPressure_V1(modeltools.Method):
+    """Calculate the actual vapour pressure.
+
+    Example:
+
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
         >>> inputs.relativehumidity = 60.0
@@ -2158,6 +2144,9 @@ class Calc_ActualVapourPressure_V1(modeltools.Method):
         >>> fluxes.actualvapourpressure
         actualvapourpressure(1.2, 1.08, 0.9)
     """
+    SUBMETHODS = (
+        Return_ActualVapourPressure_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
@@ -2168,148 +2157,50 @@ class Calc_ActualVapourPressure_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.ActualVapourPressure,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
-            flu.actualvapourpressure[k] = (
-                model.calc_actualvapourpressure_single_v1(
-                    flu.saturationvapourpressure[k]))
+            flu.actualvapourpressure[k] = \
+                model.return_actualvapourpressure_v1(
+                    flu.saturationvapourpressure[k])
 
 
-class Calc_ActualVapourPressure_Single_V1(modeltools.Method):
-    """Calculate the actual vapour pressure for a single |NHRU| for a given
-    saturation vapour pressure.
+class Return_NetLongwaveRadiation_V1(modeltools.Method):
+    """Calculates the net longwave radiation and return it.
 
-    Basic equation (`Allen`_, equation 19, modified):
-      :math:`ActualVapourPressure = SaturationVapourPressure \\cdot
-      RelativeHumidity / 100`
+    Method |Return_NetLongwaveRadiation_V1| relies on two different
+    equations for snow-covered and snow-free surfaces.
 
-    Calc_ActualVapourPressure_Single_V1 is a 'Single' method which means
-    that this method cannot be directly used by an application model.
-
-    This method needs a saturation vapour pressure as parameter and returns the
-    actual vapour pressure for the given temperature.
-
-    The following example shows how this method is used in the method
-    |Calc_ActualVapourPressure| which uses the |SaturationVapourPressure| as
-    parameter.
-
-    Example:
-
-        >>> from hydpy.models.lland import *
-        >>> parameterstep('1d')
-        >>> nhru(3)
-        >>> inputs.relativehumidity = 60.0
-        >>> fluxes.saturationvapourpressure = 2.0, 1.8, 1.5
-        >>> model.calc_actualvapourpressure_v1()
-        >>> fluxes.actualvapourpressure
-        actualvapourpressure(1.2, 1.08, 0.9)
-    """
-
-    REQUIREDSEQUENCES = (
-        lland_inputs.RelativeHumidity,
-    )
-    
-    @staticmethod
-    def __call__(model: modeltools.Model,
-                 saturationvapourpressure: float) -> float:
-        inp = model.sequences.inputs.fastaccess
-        return saturationvapourpressure * inp.relativehumidity/100.
-
-
-class Calc_NetLongwaveRadiation_V1(modeltools.Method):
-    """Calculate the net longwave radiation for snow free surfaces.
-
-    For further documentation see |Calc_NetLongwaveRadiation_Single_V1|.
-
-    Example:
-
-        >>> from hydpy.models.lland import *
-        >>> from hydpy import pub
-        >>> parameterstep()
-        >>> nhru(3)
-        >>> derived.seconds(60*60*24)
-        >>> pub.timegrids = '2000-01-01', '2000-01-02', '1d'
-        >>> derived.nmblogentries.update()
-        >>> fluxes.tkor = 22.1, 0.0, 0.0
-        >>> fluxes.actualvapourpressure = 1.6, 0.6, 0.6
-        >>> fluxes.possiblesunshineduration = 14.0
-        >>> inputs.sunshineduration = 12.0
-        >>> logs.loggedpossiblesunshineduration = 14.0
-        >>> logs.loggedsunshineduration = 12.0
-        >>> emissivity(0.95)
-        >>> fratm(1.28)
-        >>> states.waes = 0.0, 0.0, 1.0
-        >>> fluxes.tempssurface = nan, nan, 0.0
-        >>> model.calc_netlongwaveradiation_v1()
-        >>> fluxes.netlongwaveradiation
-        netlongwaveradiation(3.495045, 5.027685, 6.949137)
-
-        .. testsetup::
-
-            >>> del pub.timegrids
-    """
-
-    CONTROLPARAMETERS = (
-        lland_control.NHRU,
-        lland_control.Emissivity,
-        lland_control.FrAtm,
-    )
-    DERIVEDPARAMETERS = (
-        lland_derived.NmbLogEntries,
-        lland_derived.Seconds,
-    )
-    REQUIREDSEQUENCES = (
-        lland_fluxes.TKor,
-        lland_states.WAeS,
-        lland_fluxes.ActualVapourPressure,
-        lland_logs.LoggedPossibleSunshineDuration,
-        lland_logs.LoggedSunshineDuration,
-    )
-    
-    @staticmethod
-    def __call__(model: modeltools.Model) -> None:
-        con = model.parameters.control.fastaccess
-        for k in range(con.nhru):
-            model.calc_netlongwaveradiation_single_v1(k)
-
-
-class Calc_NetLongwaveRadiation_Single_V1(modeltools.Method):
-    """Calculates the net longwave radiation.
-
-    Basic Equation (above a snow layer):
-       :math:`NetLongwaveRadiation= -(5.67e-14 \\cdot Seconds \\cdot (TKor +
-       273.15)^4 \\cdot (FrAtm \\cdot (ActualVapourPressure \\cdot \\frac{10}
+    Basic equation (above a snow layer):
+       :math:`-(Sigma \\cdot (TKor + 273.15)^4 \\cdot
+       (FrAtm \\cdot (ActualVapourPressure \\cdot \\frac{10}
        {TKor + 273.15})^{\\frac{1}{7}}-Emissivity) \\cdot (0.2+0.8 \\cdot
        (\frac{SunshineDuration}{PossibleSunshineDuration})))`
 
-    Basic Equation (above snow-free surfaces):
-       :math:`NetLongwaveRadiation = (5.67e-14 \\cdot Seconds \\cdot
-       (TempSSurface+273.15)^4 - 5.67e-14 \\cdot Seconds \\cdot
+    Basic equation (above a snow-free surface):
+       :math:`(Sigma \\cdot (TempSSurface+273.15)^4 - Sigma \\cdot
        (Tkor + 273.15)^4 \\cdot FrAtm \\cdot (ActualVapourPressure \\cdot
        \\frac{10}{TKor[k] + 273.15})^{\\frac{1}{7}} \\cdot (1 + 0.22
        \\cdot (1-\frac{SunshineDuration}{PossibleSunshineDuration})^2))`
 
-    |Netlongwaveradiation| uses two different formulas. One if the surface is
-    snow covered (and the snow surface temperature is calculated) and the
-    other one if there is no snow (and thus no snow surface temperature is
-    calculated).
+    Examples:
 
-    Example:
-
-        ToDo: update doc
+        The first two hydrological response units deal with a snow-free
+        situation (where no temperature of a snow surface can be defined),
+        wheres the last to units deal with a snow layer.  Note the
+        considerable difference between the results of the second (snow-free)
+        and the third (snow-covered) response unit:
 
         >>> from hydpy import pub
         >>> pub.timegrids = '2000-01-01', '2000-01-02', '1d'
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(4)
         >>> emissivity(0.95)
         >>> fratm(1.28)
-        >>> derived.seconds.update()
         >>> derived.nmblogentries.update()
         >>> inputs.sunshineduration = 12.0
         >>> states.waes = 0.0, 0.0, 1.0, 1.0
@@ -2317,26 +2208,31 @@ class Calc_NetLongwaveRadiation_Single_V1(modeltools.Method):
         >>> fluxes.actualvapourpressure = 1.6, 0.6, 0.6, 0.6
         >>> fluxes.possiblesunshineduration = 14.0
         >>> fluxes.tempssurface = nan, nan, 0.0, -5.0
-        >>> model.calc_netlongwaveradiation_v1()
-        >>> fluxes.netlongwaveradiation
-        netlongwaveradiation(3.495045, 5.027685, 6.949137, 5.006517)
+        >>> from hydpy import print_values
+        >>> for hru in range(4):
+        ...     print_values([hru, model.return_netlongwaveradiation_v1(hru)])
+        0, 3.495045
+        1, 5.027685
+        2, 6.949137
+        3, 5.006517
 
-        If we set the current sunshineduration to 0 we get the same value as
-        above since we logged the sunshine duration:
+        If we set the current sunshine duration to zero but log the original
+        sunshine duration, we get the same results as above:
 
         >>> inputs.possiblesunshineduration = 0.0
         >>> logs.loggedsunshineduration = 12.0
         >>> logs.loggedpossiblesunshineduration = 14.0
-
-        >>> model.calc_netlongwaveradiation_v1()
-        >>> fluxes.netlongwaveradiation
-        netlongwaveradiation(3.495045, 5.027685, 6.949137, 5.006517)
+        >>> for hru in range(4):
+        ...     print_values([hru, model.return_netlongwaveradiation_v1(hru)])
+        0, 3.495045
+        1, 5.027685
+        2, 6.949137
+        3, 5.006517
 
         .. testsetup::
 
             >>> del pub.timegrids
     """
-    # todo Wert für langwellige Strahlung ohne Schnee weicht stark ab!
     CONTROLPARAMETERS = (
         lland_control.NHRU,
         lland_control.Emissivity,
@@ -2344,7 +2240,9 @@ class Calc_NetLongwaveRadiation_Single_V1(modeltools.Method):
     )
     DERIVEDPARAMETERS = (
         lland_derived.NmbLogEntries,
-        lland_derived.Seconds,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.Sigma,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.TempSSurface,
@@ -2357,11 +2255,12 @@ class Calc_NetLongwaveRadiation_Single_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.NetLongwaveRadiation,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model, k: int) -> None:
+    def __call__(model: 'lland.Model', k: int) -> float:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         inp = model.sequences.inputs.fastaccess
         flu = model.sequences.fluxes.fastaccess
         log = model.sequences.logs.fastaccess
@@ -2370,8 +2269,6 @@ class Calc_NetLongwaveRadiation_Single_V1(modeltools.Method):
         if flu.possiblesunshineduration > 0:
             d_sunshineduration = inp.sunshineduration
             d_possiblesunshineduration = flu.possiblesunshineduration
-            # todo: Hier sollte es eine Warnung geben, wenn Sonnenscheindauer >
-            #  possiblesunshineduration
         else:
             d_sunshineduration = 0.
             d_possiblesunshineduration = 0.
@@ -2382,22 +2279,85 @@ class Calc_NetLongwaveRadiation_Single_V1(modeltools.Method):
 
         d_relsunshine = d_sunshineduration/d_possiblesunshineduration
 
-        d_temp1 = 5.67e-14 * der.seconds * (flu.tkor[k] + 273.15) ** 4
-        d_temp2 = (flu.actualvapourpressure[k] * 10. /
-                   (flu.tkor[k] + 273.15)) ** (1. / 7.)
-        if sta.waes[k] == 0.0:
-            flu.netlongwaveradiation[k] = -(
-                d_temp1*(con.fratm*d_temp2-con.emissivity) *
-                (.2+.8*d_relsunshine))
-        else:
-            flu.netlongwaveradiation[k] = (
-                5.67e-14*der.seconds*(flu.tempssurface[k]+273.15)**4 -
-                d_temp1*con.fratm*d_temp2*(1.+.22*(1.-d_relsunshine)**2))
-        # todo: 1.28 als möglicher Kalibrierparameter (FRatm) Nicht in
-        #  Tape35 enthalten?
-        # todo: Konstanten: Stefan Boltzmann-Konstante:
-        #  5.67 * 10^(-14) MW/m²/K^4
-        # todo: Vorsicht bei anderen Schneeoptionen
+        d_temp1 = fix.sigma*(flu.tkor[k]+273.15)**4
+        d_temp2 = (flu.actualvapourpressure[k]*10. /
+                   (flu.tkor[k]+273.15))**(1./7.)
+        if sta.waes[k] > 0.:
+            return (fix.sigma*(flu.tempssurface[k]+273.15)**4 -
+                    d_temp1*con.fratm*d_temp2*(1.+.22*(1.-d_relsunshine)**2))
+        return -(d_temp1*(con.fratm*d_temp2-con.emissivity) *
+                 (.2+.8*d_relsunshine))
+
+
+class Calc_NetLongwaveRadiation_V1(modeltools.Method):
+    """Calculate the net longwave radiation for snow-free land surfaces.
+
+    Example:
+
+        Basically, method |Calc_NetLongwaveRadiation_V1| just uses method
+        |Return_NetLongwaveRadiation_V1| to calculate the long wave
+        radiation of each non-water response unit and keeps the eventually
+        predefined values of the other ones:
+
+        >>> from hydpy import pub
+        >>> pub.timegrids = '2000-01-01', '2000-01-02', '1d'
+        >>> from hydpy.lland import *
+        >>> parameterstep()
+        >>> nhru(2)
+        >>> lnk(ACKER)
+        >>> derived.nmblogentries.update()
+        >>> fluxes.tkor = 22.1
+        >>> fluxes.actualvapourpressure = 1.6
+        >>> fluxes.possiblesunshineduration = 14.0
+        >>> inputs.sunshineduration = 12.0
+        >>> emissivity(0.95)
+        >>> fratm(1.28)
+        >>> states.waes = 0.0, 1.0
+        >>> fluxes.tempssurface = nan
+        >>> fluxes.netlongwaveradiation = 1.0
+        >>> model.calc_netlongwaveradiation_v1()
+        >>> fluxes.netlongwaveradiation
+        netlongwaveradiation(3.495045, 1.0)
+
+        .. testsetup::
+
+            >>> del pub.timegrids
+    """
+    SUBMETHODS = (
+        Return_NetLongwaveRadiation_V1,
+    )
+    CONTROLPARAMETERS = (
+        lland_control.NHRU,
+        lland_control.Lnk,
+        lland_control.Emissivity,
+        lland_control.FrAtm,
+    )
+    DERIVEDPARAMETERS = (
+        lland_derived.NmbLogEntries,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.Sigma,
+    )
+    REQUIREDSEQUENCES = (
+        lland_fluxes.TKor,
+        lland_states.WAeS,
+        lland_fluxes.ActualVapourPressure,
+        lland_logs.LoggedPossibleSunshineDuration,
+        lland_logs.LoggedSunshineDuration,
+    )
+    RESULTSEQUENCES = (
+        lland_fluxes.NetLongwaveRadiation,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model') -> None:
+        con = model.parameters.control.fastaccess
+        flu = model.sequences.fluxes.fastaccess
+        sta = model.sequences.states.fastaccess
+        for k in range(con.nhru):
+            if sta.waes[k] <= 0.:
+                flu.netlongwaveradiation[k] = \
+                    model.return_netlongwaveradiation_v1(k)
 
 
 class Update_TauS_V1(modeltools.Method):
@@ -2420,7 +2380,7 @@ class Update_TauS_V1(modeltools.Method):
         For snow-free surfaces, |TauS| is not defined; snowfall rejuvenates
         an existing snow layer; high temperatures increase the speed of aging:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(10)
         >>> derived.seconds(24*60*60)
@@ -2454,9 +2414,9 @@ class Update_TauS_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.TauS,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -2474,23 +2434,23 @@ class Update_TauS_V1(modeltools.Method):
                 sta.taus[k] = modelutils.nan
 
 
-class Calc_AlbedoCorr_V1(modeltools.Method):
+class Calc_ActualAlbedo_V1(modeltools.Method):
     """Calculate the current albedo value.
 
-    For snow-free surfaces, method |Calc_AlbedoCorr_V1| uses takes the
+    For snow-free surfaces, method |Calc_AlbedoCorr_V1| takes the
     value of parameter |Albedo| relevant for the given landuse and month.
-    For snow surfaces, it estimates the albedo based on the snow age, as
-    shown by the following equation:
+    For snow conditions, it estimates the albedo based on the snow age,
+    as shown by the following equation.
 
     Basic equations:
       :math:`AlbedoSnow = Albedo0Snow \\cdot
       (1-SnowAgingFactor \\cdot \\frac{TauS}{1 + TauS})`
 
-    Example:
+    Examples:
 
         >>> from hydpy import pub
         >>> pub.timegrids = '2000-01-30', '2000-02-03', '1d'
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(5)
         >>> lnk(ACKER, VERS, VERS, VERS, VERS)
@@ -2504,13 +2464,13 @@ class Calc_AlbedoCorr_V1(modeltools.Method):
         >>> states.taus = nan, nan, 0.0, 1.0, 3.0
         >>> states.waes = 0.0, 0.0, 1.0, 1.0, 1.0
         >>> model.idx_sim = 1
-        >>> model.calc_albedocorr_v1()
-        >>> fluxes.albedocorr
-        albedocorr(0.2, 0.3, 0.8, 0.66, 0.59)
+        >>> model.calc_actualalbedo_v1()
+        >>> fluxes.actualalbedo
+        actualalbedo(0.2, 0.3, 0.8, 0.66, 0.59)
         >>> model.idx_sim = 2
-        >>> model.calc_albedocorr_v1()
-        >>> fluxes.albedocorr
-        albedocorr(0.4, 0.5, 0.8, 0.66, 0.59)
+        >>> model.calc_actualalbedo_v1()
+        >>> fluxes.actualalbedo
+        actualalbedo(0.4, 0.5, 0.8, 0.66, 0.59)
 
         .. testsetup::
 
@@ -2530,23 +2490,23 @@ class Calc_AlbedoCorr_V1(modeltools.Method):
         lland_states.WAeS,
     )
     RESULTSEQUENCES = (
-        lland_fluxes.AlbedoCorr,
+        lland_fluxes.ActualAlbedo,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if sta.waes[k] <= 0.:
-                flu.albedocorr[k] = \
-                    con.albedo[con.lnk[k]-1, der.moy[model.idx_sim]]
-            else:
-                flu.albedocorr[k] = (
+            if sta.waes[k] > 0.:
+                flu.actualalbedo[k] = (
                     con.albedo0snow *
                     (1.-con.snowagingfactor*sta.taus[k]/(1.+sta.taus[k])))
+            else:
+                flu.actualalbedo[k] = \
+                    con.albedo[con.lnk[k]-1, der.moy[model.idx_sim]]
 
 
 class Calc_NetShortwaveRadiation_V1(modeltools.Method):
@@ -2557,10 +2517,10 @@ class Calc_NetShortwaveRadiation_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
-        >>> fluxes.albedocorr(0.23, 0.5)
+        >>> fluxes.actualalbedo(0.23, 0.5)
         >>> fluxes.globalradiation = 20.0
         >>> model.calc_netshortwaveradiation_v1()
         >>> fluxes.netshortwaveradiation
@@ -2571,52 +2531,52 @@ class Calc_NetShortwaveRadiation_V1(modeltools.Method):
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.GlobalRadiation,
-        lland_fluxes.AlbedoCorr,
+        lland_fluxes.ActualAlbedo,
     )
     RESULTSEQUENCES = (
         lland_fluxes.NetShortwaveRadiation,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
             flu.netshortwaveradiation[k] = \
-                (1. - flu.albedocorr[k]) * flu.globalradiation
+                (1.-flu.actualalbedo[k])*flu.globalradiation
 
 
 class Calc_TempS_V1(modeltools.Method):
     """Calculate the average temperature of the snow layer.
 
-    ToDo: states.fastaccess_old.waes statt fastaccess.esnow?
-
     Basic equation:
-      :math:`TempS = \\frac{E_{snow}}{WATS \\cdot
-      \\varrho_{w} \\cdot cp_{eis} + (WAeS-WATS)\\cdot cp_{wasser}}`
-
-    If there is no snow (|WAeS| = 0), |TempS| is set to NaN..
+      :math:`TempS =
+      \\frac{E_{snow}}{WATS \\cdotcp_{eis} + (WAeS-WATS)\\cdot cp_{wasser}}`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        Note that we use |numpy.nan| values for snow-free surfaces
+        (see the result of the first hydrological response unit):
+
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
         >>> pwmax(2.0)
-        >>> cpwasser(0.0041868)
-        >>> cpeis(0.00209)
         >>> fluxes.tkor(-1.0)
         >>> states.wats(0.0, 0.5, 5)
         >>> states.waes(0.0, 1.0, 10)
-        >>> states.esnow(nan, 0.0, -0.1)
+        >>> states.esnow(0.0, 0.0, -0.1)
         >>> model.calc_temps_v1()
         >>> aides.temps
         temps(nan, 0.0, -3.186337)
     """
 
     CONTROLPARAMETERS = (
-        lland_control.CPWasser,
         lland_control.NHRU,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.CPWasser,
+        lland_fixed.CPEis,
     )
     REQUIREDSEQUENCES = (
         lland_states.WATS,
@@ -2628,47 +2588,40 @@ class Calc_TempS_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_aides.TempS,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         sta = model.sequences.states.fastaccess
         aid = model.sequences.aides.fastaccess
         for k in range(con.nhru):
             if sta.waes[k] > 0.:
-                aid.temps[k] = (
-                    sta.esnow[k] /
-                    (sta.wats[k]*con.cpeis +
-                     (sta.waes[k]-sta.wats[k])*con.cpwasser))
+                d_ice = fix.cpeis*sta.wats[k]
+                d_water = fix.cpwasser*(sta.waes[k]-sta.wats[k])
+                aid.temps[k] = sta.esnow[k]/(d_ice+d_water)
             else:
                 aid.temps[k] = modelutils.nan
 
 
 class Calc_TZ_V1(modeltools.Method):
-    """Calculate mean soil temperature accounting for the thawing of soil water.
+    """Calculate mean temperature in the top-layer of the soil.
 
-    Basic equations:
+    Basic equation for a completely frozen soil:
+      :math:`TZ = \\frac{EBdn}{2 \\cdot z \\cdot c_G}`
 
-    Energy to melt the complete soil water:
-      :math:`d_melt = BoWa2Z \\cdot RSchmelz \\cdot \\varrho_{W}`
-
-    Completely frozen soil (EBdn < 0):
-      :math:`TZ = \\frac{EBdn}{2 \\cdot z \\cdot \\varrho_{W} \\cdot c_G}`
-
-    Partly frozen soil (0 < EBdn < Melt)
+    Basic equation for a partly frozen soil:
       :math:`TZ = 0`
 
-    Unfrozen soil (EBdn < 0)
-      :math:`TZ = \\frac{EBdn - d_melt}{2 \\cdot z \\cdot
-      \\varrho_{W} \\cdot c_G}`
+    Basic equation for a completely unfrozen soil:
+      :math:`TZ = \\frac{EBdn - BoWa2Z \\cdot RSchmelz}{2 \\cdot z \\cdot c_G}`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(7)
         >>> cg(1.5)
-        >>> z(0.1)
         >>> derived.heatoffusion(26.72)
         >>> states.ebdn(-10.0, -1.0, 0.0, 13.36, 26.72, 27.72, 36.72)
         >>> model.calc_tz_v1()
@@ -2677,10 +2630,12 @@ class Calc_TZ_V1(modeltools.Method):
         """
     CONTROLPARAMETERS = (
         lland_control.CG,
-        lland_control.Z,
     )
     DERIVEDPARAMETERS = (
         lland_derived.HeatOfFusion,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.Z,
     )
     REQUIREDSEQUENCES = (
         lland_states.EBdn,
@@ -2688,21 +2643,22 @@ class Calc_TZ_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.TZ,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if sta.ebdn[k] >= der.heatoffusion[k]:
-                flu.tz[k] = \
-                    (sta.ebdn[k]-der.heatoffusion[k])/(2*con.z*con.cg[k])
-            elif sta.ebdn[k] <= 0:
-                flu.tz[k] = sta.ebdn[k]/(2*con.z*con.cg[k])
-            else:
+            if sta.ebdn[k] < 0.:
+                flu.tz[k] = sta.ebdn[k]/(2.*fix.z*con.cg[k])
+            elif sta.ebdn[k] < der.heatoffusion[k]:
                 flu.tz[k] = 0.
+            else:
+                flu.tz[k] = \
+                    (sta.ebdn[k]-der.heatoffusion[k])/(2.*fix.z*con.cg[k])
 
 
 class Calc_WG_V1(modeltools.Method):
@@ -2714,29 +2670,29 @@ class Calc_WG_V1(modeltools.Method):
     temperature of the snow layer.
 
     Basic equations:
-      :math:`WG = \\lambda_{G} \\cdot \\frac{T-T_z}{z} \\cdot Seconds`
+      :math:`WG = \\lambdaG \\cdot \\frac{Tz-T_{surface}}{z}`
 
     Examples:
 
-        >>> from hydpy.models.lland import *
-        >>> parameterstep()
+        >>> from hydpy.lland import *
+        >>> simulationstep('1h')
+        >>> parameterstep('1d')
         >>> nhru(2)
-        >>> z(0.1)
-        >>> derived.seconds(24*60*60)
+        >>> fixed.lambdag.restore()
         >>> fluxes.tz = 2.0
         >>> fluxes.tkor = 10.0
         >>> states.waes = 0.0, 1.0
         >>> aides.temps = nan, -1.0
         >>> model.calc_wg_v1()
         >>> fluxes.wg
-        wg(-4.1472, 1.5552)
+        wg(-0.1728, 0.0648)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.Z,
     )
-    DERIVEDPARAMETERS = (
-        lland_derived.Seconds,
+    FIXEDPARAMETERS = (
+        lland_fixed.Z,
+        lland_fixed.LambdaG,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.TZ,
@@ -2747,36 +2703,31 @@ class Calc_WG_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WG,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
-        der = model.parameters.derived.fastaccess
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         aid = model.sequences.aides.fastaccess
         for k in range(con.nhru):
             if sta.waes[k] > 0.:
-                d_t0 = aid.temps[k]  # ToDo
-                # d_t0 = flu.tkor[k]  # ToDo
+                d_t0 = aid.temps[k]
             else:
                 d_t0 = flu.tkor[k]
-            flu.wg[k] = 6.e-7*(flu.tz[k]-d_t0)/con.z*der.seconds
-        # todo: Konstante: 0.6e-6 MW/m °C (Wärmeleitfähigkeit des Bodens)
+            flu.wg[k] = fix.lambdag*(flu.tz[k]-d_t0)/fix.z
 
 
 class Update_EBdn_V1(modeltools.Method):
-    """Aktualisiere den Energieinhalt der oberen Bodensäule bis zu einer Tiefe
-    von 2z
+    """Update the energy content of the upper soil layer.
 
     Basic equation:
-      :math:`EBdn = EBdn_{t-1} + W_G - W_{G2Z}`
-
-    # ToDo: überall model.idx_sim explizit setzen
+      :math:`EBdn = EBdn_{t-1} + WG2Z - WG`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> from hydpy import pub
         >>> parameterstep()
         >>> nhru(3)
@@ -2785,21 +2736,16 @@ class Update_EBdn_V1(modeltools.Method):
         >>> derived.seconds.update()
         >>> wg2z.apr = -0.03
         >>> wg2z.mai = -0.04
-        >>> fluxes.wg(0.5, 1.0, 2.0)
-        >>> states.ebdn(0.0)
-        >>> model.idx_sim = 2
-        >>> model.update_ebdn_v1()
-        >>> states.ebdn
-        ebdn(-0.54, -1.04, -2.04)
-        >>> model.update_ebdn_v1()
-        >>> states.ebdn
-        ebdn(-1.08, -2.08, -4.08)
-
+        >>> states.ebdn = 0.0
+        >>> fluxes.wg = 0.5, 1.0, 2.0
         >>> model.idx_sim = 1
-        >>> states.ebdn(0.0)
         >>> model.update_ebdn_v1()
         >>> states.ebdn
         ebdn(-0.53, -1.03, -2.03)
+        >>> model.idx_sim = 2
+        >>> model.update_ebdn_v1()
+        >>> states.ebdn
+        ebdn(-1.07, -2.07, -4.07)
 
         .. testsetup::
 
@@ -2820,9 +2766,9 @@ class Update_EBdn_V1(modeltools.Method):
     UPDATEDSEQUENCES = (
         lland_states.EBdn,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -2840,7 +2786,7 @@ class Calc_WSensSnow_Single_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> derived.seconds(24*60*60)
         >>> nhru(2)
@@ -2870,9 +2816,9 @@ class Calc_WSensSnow_Single_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WSensSnow,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model, k: int) -> None:
+    def __call__(model: 'lland.Model', k: int) -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -2892,7 +2838,7 @@ class Calc_WLatSnow_Single_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> derived.seconds(24*60*60)
         >>> nhru(2)
@@ -2920,9 +2866,9 @@ class Calc_WLatSnow_Single_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WLatSnow,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model, k: int) -> None:
+    def __call__(model: 'lland.Model', k: int) -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -2940,7 +2886,7 @@ class Calc_WSurf_Single_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(1)
         >>> derived.seconds(24*60*60)
@@ -2960,9 +2906,9 @@ class Calc_WSurf_Single_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WSurf,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model, k: int) -> None:
+    def __call__(model: 'lland.Model', k: int) -> None:
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         aid = model.sequences.aides.fastaccess
@@ -2986,22 +2932,12 @@ class Calc_EnergyBalanceSurface_V1(modeltools.Method):
       NetshortwaveRadiation - NetlongwaveRadiation(TempSSurface) -
       WSensSnow(TempSSurface) - WLatSnow(TempSSurface)`
 
-    See also the documentation of the following methods, used to calculate
-    the individual energy terms:
-
-     * |Calc_SaturationVapourPressure_Single_V1|
-     * |Calc_ActualVapourPressure_Single_V1|
-     * |Calc_NetLongwaveRadiation_Single_V1|
-     * |Calc_WSensSnow_Single_V1|
-     * |Calc_WLatSnow_Single_V1|
-     * |Calc_WSurf_Single_V1|
-
     Example:
 
-        >>> from hydpy.models.lland import *
         >>> from hydpy import pub
-        >>> parameterstep()
         >>> pub.timegrids = '2000-01-01', '2000-01-02', '1d'
+        >>> from hydpy.lland import *
+        >>> parameterstep()
         >>> derived.nmblogentries.update()
         >>> nhru(1)
         >>> turb0(2.0)
@@ -3040,6 +2976,14 @@ class Calc_EnergyBalanceSurface_V1(modeltools.Method):
 
             >>> del pub.timegrids
     """
+    SUBMETHODS = (
+        Return_SaturationVapourPressure_V1,
+        Return_ActualVapourPressure_V1,
+        Calc_WSensSnow_Single_V1,
+        Calc_WLatSnow_Single_V1,
+        Calc_WSurf_Single_V1,
+        Return_NetLongwaveRadiation_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
         lland_control.Turb0,
@@ -3069,9 +3013,9 @@ class Calc_EnergyBalanceSurface_V1(modeltools.Method):
         lland_fluxes.NetLongwaveRadiation,
         lland_fluxes.WSurf,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model, tempssurface: float) -> float:
+    def __call__(model: 'lland.Model', tempssurface: float) -> float:
         flu = model.sequences.fluxes.fastaccess
 
         k = model.idx_hru
@@ -3079,14 +3023,13 @@ class Calc_EnergyBalanceSurface_V1(modeltools.Method):
         flu.tempssurface[k] = tempssurface
 
         flu.saturationvapourpressuresnow[k] = \
-            model.calc_saturationvapourpressure_single_v1(
-                flu.tempssurface[k])
+            model.return_saturationvapourpressure_v1(flu.tempssurface[k])
         flu.actualvapourpressuresnow[k] = \
-            model.calc_actualvapourpressure_single_v1(
+            model.return_actualvapourpressure_v1(
                 flu.saturationvapourpressuresnow[k])
         model.calc_wlatsnow_single_v1(k)
         model.calc_wsenssnow_single_v1(k)
-        model.calc_netlongwaveradiation_single_v1(k)
+        flu.netlongwaveradiation[k] = model.return_netlongwaveradiation_v1(k)
         model.calc_wsurf_single_v1(k)
 
         return (
@@ -3112,7 +3055,7 @@ class Calc_TempSSurface_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(5)
         >>> turb0(2.0)
@@ -3187,12 +3130,11 @@ class Calc_TempSSurface_V1(modeltools.Method):
         lland_fluxes.NetLongwaveRadiation,
         lland_fluxes.WSurf,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         aid = model.sequences.aides.fastaccess
         con = model.parameters.control.fastaccess
-        der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
@@ -3217,22 +3159,21 @@ class Calc_TempSSurface_V1(modeltools.Method):
 class Calc_NetRadiation_V1(modeltools.Method):
     """Calculate the total net radiation.
 
-    Basic equation (`Allen`_):
+    Basic equation (`Allen`_, equation 40):
       :math:`NetRadiation = NetShortwaveRadiation-NetLongwaveRadiation`
 
     Example:
 
         The following calculation agrees with example 12 of `Allen`_:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
-        >>> nhru(1)
-        >>> fluxes.netshortwaveradiation  = 11.1
-        >>> fluxes.netlongwaveradiation  = 3.5
+        >>> nhru(2)
+        >>> fluxes.netshortwaveradiation = 11.1
+        >>> fluxes.netlongwaveradiation = 3.5
         >>> model.calc_netradiation_v1()
         >>> fluxes.netradiation
-        netradiation(7.6)
-
+        netradiation(7.6, 7.6)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -3244,14 +3185,14 @@ class Calc_NetRadiation_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.NetRadiation,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
             flu.netradiation[k] = \
-                flu.netshortwaveradiation[k] - flu.netlongwaveradiation[k]
+                flu.netshortwaveradiation[k]-flu.netlongwaveradiation[k]
 
 
 class Calc_SchmPot_V1(modeltools.Method):
@@ -3263,10 +3204,9 @@ class Calc_SchmPot_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(2)
-        >>> rschmelz(0.334)
         >>> fluxes.wgtf(2.0)
         >>> fluxes.wnied = 1.0, 2.0
         >>> model.calc_schmpot_v1()
@@ -3275,7 +3215,9 @@ class Calc_SchmPot_V1(modeltools.Method):
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.RSchmelz,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.RSchmelz,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.WGTF,
@@ -3286,11 +3228,12 @@ class Calc_SchmPot_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
-            flu.schmpot[k] = max((flu.wgtf[k]+flu.wnied[k])/con.rschmelz, 0)
+            flu.schmpot[k] = max((flu.wgtf[k]+flu.wnied[k])/fix.rschmelz, 0)
 
 
 class Calc_WSnow_V1(modeltools.Method):
@@ -3303,7 +3246,7 @@ class Calc_WSnow_V1(modeltools.Method):
 
       Example:
 
-          >>> from hydpy.models.lland import *
+          >>> from hydpy.lland import *
           >>> parameterstep('1d')
           >>> nhru(2)
           >>> fluxes.wg(4.0)
@@ -3324,9 +3267,9 @@ class Calc_WSnow_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.WSnow,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -3345,7 +3288,7 @@ class Update_ESnow_V2(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
         >>> states.waes = 0.0, 1.0, 10.0
@@ -3365,9 +3308,9 @@ class Update_ESnow_V2(modeltools.Method):
     UPDATEDSEQUENCES = (
         lland_states.ESnow,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         sta = model.sequences.states.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -3386,10 +3329,9 @@ class Calc_SchmPot_V2(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(4)
-        >>> rschmelz(0.334)
         >>> states.waes = 0.0, 1.0, 1.0, 1.0
         >>> states.esnow = nan, 5.0, 2.0, -2.0
         >>> model.calc_schmpot_v2()
@@ -3398,7 +3340,9 @@ class Calc_SchmPot_V2(modeltools.Method):
         """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.RSchmelz,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.RSchmelz,
     )
     REQUIREDSEQUENCES = (
         lland_states.ESnow,
@@ -3409,13 +3353,14 @@ class Calc_SchmPot_V2(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
             if sta.waes[k] > 0.:
-                flu.schmpot[k] = max(sta.esnow[k]/con.rschmelz, 0)
+                flu.schmpot[k] = max(sta.esnow[k]/fix.rschmelz, 0)
             else:
                 flu.schmpot[k] = 0.
             # ToDo: Eingabe Knauf-Parameter
@@ -3430,10 +3375,9 @@ class Calc_GefrPot_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(4)
-        >>> rschmelz(0.334)
         >>> states.waes = 0.0, 1.0, 1.0, 1.0
         >>> states.esnow = nan, -5.0, -2.0, 2.0
         >>> model.calc_gefrpot_v1()
@@ -3442,7 +3386,9 @@ class Calc_GefrPot_V1(modeltools.Method):
         """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.RSchmelz,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.RSchmelz,
     )
     REQUIREDSEQUENCES = (
         lland_states.ESnow,
@@ -3453,13 +3399,14 @@ class Calc_GefrPot_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if sta.waes[k]>0:
-                flu.gefrpot[k] = max(-sta.esnow[k]/con.rschmelz, 0)
+            if sta.waes[k] > 0:
+                flu.gefrpot[k] = max(-sta.esnow[k]/fix.rschmelz, 0)
             else:
                 flu.gefrpot[k] = 0.
 
@@ -3482,7 +3429,7 @@ class Calc_Schm_WATS_V1(modeltools.Method):
         of frozen water (|WATS|) and the frozen part of stand precipitation
         (|SBes|), but different values for potential snowmelt (|SchmPot|):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(6)
         >>> lnk(FLUSS, SEE, ACKER, ACKER, ACKER, ACKER)
@@ -3513,9 +3460,9 @@ class Calc_Schm_WATS_V1(modeltools.Method):
     UPDATEDSEQUENCES = (
         lland_states.WATS,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -3542,7 +3489,7 @@ class Calc_Gefr_WATS_V1(modeltools.Method):
         of frozen water (|WATS|) and the frozen part of stand precipitation
         (|SBes|), but different values for potential snowmelt (|SchmPot|):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(6)
         >>> lnk(FLUSS, SEE, ACKER, ACKER, ACKER, ACKER)
@@ -3588,7 +3535,7 @@ class Calc_Gefr_WATS_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -3618,7 +3565,7 @@ class Update_WaDa_WAeS_V1(modeltools.Method):
         hold as much liquid water as it contains frozen water, but the initial
         conditions of the snow cover are varied:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(6)
         >>> lnk(FLUSS, SEE, ACKER, ACKER, ACKER, ACKER)
@@ -3653,7 +3600,7 @@ class Update_WaDa_WAeS_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -3669,10 +3616,9 @@ class Update_ESnow_V3(modeltools.Method):
 
     Examples:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(4)
-        >>> rschmelz(0.334)
         >>> fluxes.gefr = 0.0, 4.0, 0.0, 4.0
         >>> fluxes.schm = 0.0, 0.0, 4.0, 4.0
         >>> states.esnow = 1.0, -1.5, 1.336, 0.0
@@ -3683,7 +3629,9 @@ class Update_ESnow_V3(modeltools.Method):
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.RSchmelz,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.RSchmelz,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.Gefr,
@@ -3695,14 +3643,15 @@ class Update_ESnow_V3(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         sta = model.sequences.states.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
             if sta.wats[k] > 0.:
-                sta.esnow[k] -= flu.schm[k]*con.rschmelz
-                sta.esnow[k] += flu.gefr[k]*con.rschmelz
+                sta.esnow[k] -= flu.schm[k]*fix.rschmelz
+                sta.esnow[k] += flu.gefr[k]*fix.rschmelz
             else:
                 sta.esnow[k] = 0.
 
@@ -3712,25 +3661,25 @@ class Calc_SFF_V1(modeltools.Method):
     2z)
 
     Basic equations:
-      :math:`SFF = Max(1 - \\frac{EBdn}{BoWa} \\cdot R_{Schmelz}
-      \\cdot \\varrho_W, 0)`
+      :math:`SFF = Max(1 - \\frac{EBdn}{BoWa} \\cdot R_{Schmelz}, 0)`
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
-        >>> rschmelz(0.322)
         >>> bowa2z(80.0)
         >>> states.ebdn(30.0, -1.0, 5.0)
         >>> model.calc_sff_v1()
         >>> fluxes.sff
-        sff(0.0, 1.0, 0.805901)
+        sff(0.0, 1.0, 0.812874)
         """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.RSchmelz,
         lland_control.BoWa2Z,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.RSchmelz,
     )
     REQUIREDSEQUENCES = (
         lland_states.EBdn,
@@ -3738,17 +3687,18 @@ class Calc_SFF_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SFF,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
             if sta.ebdn[k] < 0:
                 flu.sff[k] = 1
             else:
-                flu.sff[k] = max(1-sta.ebdn[k]/(con.bowa2z[k]*con.rschmelz), 0)
+                flu.sff[k] = max(1-sta.ebdn[k]/(con.bowa2z[k]*fix.rschmelz), 0)
 
 
 class Calc_FVG_V1(modeltools.Method):
@@ -3759,7 +3709,7 @@ class Calc_FVG_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(3)
         >>> fvf(0.8)
@@ -3777,9 +3727,9 @@ class Calc_FVG_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.FVG,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
@@ -3805,7 +3755,7 @@ class Calc_EvB_V1(modeltools.Method):
         (arable land |ACKER| has been selected for the last four HRUs
         arbitrarily):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(7)
         >>> lnk(FLUSS, SEE, VERS, ACKER, ACKER, ACKER, ACKER)
@@ -3838,9 +3788,9 @@ class Calc_EvB_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.EvB,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -3859,13 +3809,13 @@ class Calc_EvB_V1(modeltools.Method):
 
 
 class Calc_DryAirPressure_V1(modeltools.Method):
-    """Calculate pressure of dry air.
+    """Calculate the pressure of the dry air.
 
     Basic equation:
        :math:`DryAirPressure = AirPressure - ActualVapourPressure`
 
     Example:
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(3)
         >>> fluxes.actualvapourpressure = 0.9, 1.1, 2.5
@@ -3874,39 +3824,36 @@ class Calc_DryAirPressure_V1(modeltools.Method):
         >>> fluxes.dryairpressure
         dryairpressure(119.1, 118.9, 117.5)
     """
-
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
-
     REQUIREDSEQUENCES = (
         lland_fluxes.ActualVapourPressure,
         lland_inputs.AtmosphericPressure,
     )
-
     RESULTSEQUENCES = (
         lland_fluxes.DryAirPressure,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         inp = model.sequences.inputs.fastaccess
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
             flu.dryairpressure[k] = \
-                inp.atmosphericpressure - flu.actualvapourpressure[k]
+                inp.atmosphericpressure-flu.actualvapourpressure[k]
 
 
 class Calc_DensityAir_V1(modeltools.Method):
     """Calculate the density of the air.
 
     Basic equation:
-       :math:`DensityAir = \\frac{pd}{Rd \\cdot T}
-       + \\frac{ActualVapourPressure}{Rv \\cdot T}`
+       :math:`DensityAir = \\frac{DryAirPressure}{RDryAir \\cdot (TKor+273.15)}
+       + \\frac{ActualVapourPressure}{RWaterVapour \\cdot (TKor+273.15)}`
 
     Example:
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(3)
         >>> fluxes.dryairpressure = 119.1, 100.0, 115.0
@@ -3919,27 +3866,29 @@ class Calc_DensityAir_V1(modeltools.Method):
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
-
+    FIXEDPARAMETERS = (
+        lland_fixed.RDryAir,
+        lland_fixed.RWaterVapour,
+    )
     REQUIREDSEQUENCES = (
         lland_fluxes.ActualVapourPressure,
         lland_fluxes.DryAirPressure,
         lland_fluxes.TKor,
     )
-
     RESULTSEQUENCES = (
         lland_fluxes.DensityAir,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
+            d_t = flu.tkor[k]+273.15
             flu.densityair[k] = (
-                (flu.dryairpressure[k]/(0.287058*(flu.tkor[k]+273.15))) +
-                (flu.actualvapourpressure[k]/(0.461495*(flu.tkor[k]+273.15))))
-        # TODO Konstanten: specific gas constant for water vapour and for
-        #  dry air
+                flu.dryairpressure[k]/(fix.rdryair*d_t) +
+                flu.actualvapourpressure[k]/(fix.rwatervapour*d_t))
 
 
 class Calc_AerodynamicResistance_V1(modeltools.Method):
@@ -3962,7 +3911,7 @@ class Calc_AerodynamicResistance_V1(modeltools.Method):
         aerodynamic resistance decreases with crop height.
 
         >>> from hydpy import pub
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(4)
         >>> lnk(ACKER, WASSER, LAUBW, NADELW)
@@ -4018,17 +3967,17 @@ class Calc_AerodynamicResistance_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.AerodynamicResistance,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
 
         for k in range(con.nhru):
             d_z0 = \
-	            0.021+0.163*con.cropheight[con.lnk[k]-1, der.moy[model.idx_sim]]
-            if con.cropheight[con.lnk[k]-1, der.moy[model.idx_sim]]< 10:
+                0.021+0.163*con.cropheight[con.lnk[k]-1, der.moy[model.idx_sim]]
+            if con.cropheight[con.lnk[k]-1, der.moy[model.idx_sim]] < 10:
                 flu.aerodynamicresistance[k] = \
                     6.25/flu.windspeed10m*(modelutils.log(10/d_z0))**2
             else:
@@ -4051,7 +4000,7 @@ class Calc_SurfaceResistanceBare_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(6)
         >>> lnk(ACKER)
@@ -4081,9 +4030,9 @@ class Calc_SurfaceResistanceBare_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SurfaceResistanceBare,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -4104,7 +4053,7 @@ class Calc_SurfaceResistanceLandUse_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> from hydpy import pub
         >>> parameterstep()
         >>> nhru(6)
@@ -4155,9 +4104,9 @@ class Calc_SurfaceResistanceLandUse_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SurfaceResistanceLandUse,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -4203,7 +4152,7 @@ class Calc_SurfaceResistanceMoist_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(7)
         >>> pwp(30.0)
@@ -4235,9 +4184,9 @@ class Calc_SurfaceResistanceMoist_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SurfaceResistanceMoist,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -4279,7 +4228,7 @@ class Calc_SurfaceResistanceCorr_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> from hydpy import pub
         >>> parameterstep()
         >>> nhru(5)
@@ -4319,9 +4268,9 @@ class Calc_SurfaceResistanceCorr_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.SurfaceResistanceCorr,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -4354,13 +4303,13 @@ class Calc_SurfaceResistanceCorr_V1(modeltools.Method):
 class Calc_PM_Single_V1(modeltools.Method):
     """Calculate llandevapootranspiration according to Penman-Monteith
 
+    # ToDo: c_p
     Basic equations:
     :math:`EvPo = \\frac
-    {\\Delta \\cdot (NetRadiation + WG) + \\varrho c_{p}
+    {\\Delta \\cdot (NetRadiation + WG) + c_{p}
     (SaturationVapourPressure - ActualVapourPressure) / AerodynamicResistance
     \\cdot C}{\\Delta + \\gamma (1 + SurfaceResistnaceCorr /
-    AerodynamicResistance) \\cdot C} \\cdot \frac{1}{\\varrho_{w} \\cdot
-    \\lambda}`
+    AerodynamicResistance) \\cdot C} \\cdot \frac{1}{\\lambda}`
 
     :math:`C = 1 + 4 \\cdot Emissivity \\cdot Sigma \\cdot (273.15 + TKor)^3`
 
@@ -4371,7 +4320,7 @@ class Calc_PM_Single_V1(modeltools.Method):
     to calculate the evapotranspiration according to Penman-Monteith over
     land surfaces without snow.
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(6)
         >>> lnk(ACKER, ACKER, ACKER, LAUBW, LAUBW, LAUBW)
@@ -4452,9 +4401,9 @@ class Calc_PM_Single_V1(modeltools.Method):
         lland_fluxes.WG,
         lland_fluxes.NetRadiation,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model, k: int, surfaceresistance: float) \
+    def __call__(model: 'lland.Model', k: int, surfaceresistance: float) \
             -> float:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
@@ -4493,7 +4442,7 @@ class Calc_Penman_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
         
@@ -4532,9 +4481,9 @@ class Calc_Penman_V1(modeltools.Method):
         lland_fluxes.SaturationVapourPressure,
         lland_fluxes.ActualVapourPressure,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model, evpo: Vector) -> None:
+    def __call__(model: 'lland.Model', evpo: Vector) -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
@@ -4554,13 +4503,11 @@ class Calc_Penman_V1(modeltools.Method):
 
 class Calc_EvPo_V2(modeltools.Method):
     # todo: Für Wasserflächen wurde die Formel in LARSIM angepasst. Aber wie?
-    """Calculate evpotranspiration according to Penman-Monteith
-
-    For further documentation see |Calc_PM_Single_V1|
+    """Calculate evpotranspiration according to Penman-Monteith.
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(9)
         >>> lnk(ACKER, ACKER, ACKER, LAUBW, LAUBW, LAUBW, WASSER, WASSER,
@@ -4592,6 +4539,9 @@ class Calc_EvPo_V2(modeltools.Method):
         evpo(0.658719, 1.021527, 1.350634, 2.023197, 2.901006, 3.332555,
              0.658719, 1.021527, 1.350634)
     """
+    SUBMETHODS = (
+        Calc_PM_Single_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.Emissivity,
         lland_control.NHRU,
@@ -4614,11 +4564,10 @@ class Calc_EvPo_V2(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.EvPo,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
-        der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
             flu.evpo[k] = model.calc_pm_single_v1(k, 0.)
@@ -4627,11 +4576,9 @@ class Calc_EvPo_V2(modeltools.Method):
 class Calc_EvPo_V3(modeltools.Method):
     """Calculate evpotranspiration according to Penman.
 
-    For further documentation see |Calc_Penman_V1|.
-
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
         >>> derived.seconds = 24*60*60
@@ -4645,6 +4592,9 @@ class Calc_EvPo_V3(modeltools.Method):
         >>> fluxes.evpo
         evpo(2.383011, 2.986657)
     """
+    SUBMETHODS = (
+        Calc_Penman_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
@@ -4662,20 +4612,20 @@ class Calc_EvPo_V3(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.EvPo,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         flu = model.sequences.fluxes.fastaccess
         model.calc_penman_v1(flu.evpo)
 
 
 class Calc_EvPoWater_V1(modeltools.Method):
     """Calculates the evapotranspiration from water surfaces according to
-    Penman
+    Penman.
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
         >>> derived.seconds = 24*60*60
@@ -4689,7 +4639,9 @@ class Calc_EvPoWater_V1(modeltools.Method):
         >>> fluxes.evpowater
         evpowater(2.383011, 2.383011)
         """
-
+    SUBMETHODS = (
+        Calc_Penman_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
@@ -4707,9 +4659,9 @@ class Calc_EvPoWater_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.EvPoWater,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         flu = model.sequences.fluxes.fastaccess
         model.calc_penman_v1(flu.evpowater)
 
@@ -4724,7 +4676,7 @@ class Calc_EvPoSnow_WAeS_WATS_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(5)
         >>> fluxes.wlatsnow = 0.0, -2.0, 1.0, 4.0, 6.0
@@ -4753,9 +4705,9 @@ class Calc_EvPoSnow_WAeS_WATS_V1(modeltools.Method):
         lland_states.WAeS,
         lland_states.WATS,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -4789,7 +4741,7 @@ class Calc_EvI_Inzp_V1(modeltools.Method):
         and initial interception storage and apply a value of potential
         evaporation of 3 mm on each one:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(5)
         >>> lnk(FLUSS, SEE, ACKER, ACKER, ACKER)
@@ -4822,9 +4774,9 @@ class Calc_EvI_Inzp_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.EvI,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -4839,14 +4791,11 @@ class Calc_EvI_Inzp_V1(modeltools.Method):
 
 
 class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
-    """
-    Calculate the actual evapotranspiration from soil.
-
-    For further documentation see |Calc_PM_single_V1|
+    """Calculate the actual evapotranspiration from soil.
 
     Example:
 
-       >>> from hydpy.models.lland import *
+       >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(9)
         >>> lnk(ACKER, ACKER, ACKER, LAUBW, LAUBW, LAUBW, WASSER, WASSER,
@@ -4883,6 +4832,9 @@ class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
         >>> fluxes.evb
         evb(0.0, 0.296876, 0.565181, 0.0, 0.370984, 0.672898, 0.45, 0.76, 1.1)
     """
+    SUBMETHODS = (
+        Calc_PM_Single_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.Emissivity,
         lland_control.NHRU,
@@ -4909,9 +4861,8 @@ class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
     )
 
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
-        der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
@@ -4946,7 +4897,7 @@ class Calc_QKap_V1(modeltools.Method):
         capillary rise or at least an option (e.g. option='KapAquantec') how
         |KapGrenz| should be parametrized.
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> simulationstep('12h')
         >>> parameterstep('1d')
         >>> nhru(3)
@@ -5000,8 +4951,6 @@ class Calc_QKap_V1(modeltools.Method):
         >>> model.calc_qkap_v1()
         >>> fluxes.qkap
         qkap(0.75, 0.46875, 0.1875)
-
-
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -5015,9 +4964,9 @@ class Calc_QKap_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.QKap,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5063,7 +5012,7 @@ class Calc_QBB_V1(modeltools.Method):
         distinction is made between the remaining land use classes (arable
         land |ACKER| has been selected for the last five HRUs arbitrarily):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
         >>> nhru(8)
@@ -5130,9 +5079,9 @@ class Calc_QBB_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.QBB,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5144,12 +5093,12 @@ class Calc_QBB_V1(modeltools.Method):
                 if con.corrqbbflag[k] == 1:
                     flu.qbb[k] = 0.
                 else:
-                    flu.qbb[k] = con.beta[k] * (sta.bowa[k] - con.pwp[k])
+                    flu.qbb[k] = con.beta[k]*(sta.bowa[k]-con.pwp[k])
             else:
                 flu.qbb[k] = (
-                    (con.beta[k] * (sta.bowa[k] - con.pwp[k]) *
-                     (1. + (con.fbeta[k] - 1.) *
-                      ((sta.bowa[k] - con.fk[k]) / (con.wmax[k] - con.fk[k]))))
+                    (con.beta[k]*(sta.bowa[k]-con.pwp[k]) *
+                     (1.+(con.fbeta[k]-1.) *
+                      ((sta.bowa[k]-con.fk[k])/(con.wmax[k]-con.fk[k]))))
                 )
 
 
@@ -5167,7 +5116,7 @@ class Calc_QIB1_V1(modeltools.Method):
         classes (arable land |ACKER| has been selected for the last five
         HRUs arbitrarily):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
         >>> nhru(8)
@@ -5212,9 +5161,9 @@ class Calc_QIB1_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.QIB1,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5241,7 +5190,7 @@ class Calc_QIB2_V1(modeltools.Method):
         classes (arable land |ACKER| has been selected for the last
         five HRUs arbitrarily):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
         >>> nhru(8)
@@ -5290,9 +5239,9 @@ class Calc_QIB2_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.QIB1,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5331,7 +5280,7 @@ class Calc_QDB_V1(modeltools.Method):
         classes (arable land |ACKER| has been selected for the last five
         HRUs arbitrarily):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
         >>> nhru(9)
@@ -5364,9 +5313,9 @@ class Calc_QDB_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.QDB,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5399,7 +5348,7 @@ class Update_QDB_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(3)
         >>> fluxes.qdb(5.0)
@@ -5419,9 +5368,9 @@ class Update_QDB_V1(modeltools.Method):
     UPDATEDSEQUENCES = (
         lland_fluxes.QDB,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
@@ -5444,7 +5393,7 @@ class Calc_BoWa_V1(modeltools.Method):
         is made between the remaining land use classes (arable land |ACKER|
         has been selected for the last four HRUs arbitrarily):
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(7)
         >>> lnk(FLUSS, SEE, VERS, ACKER, ACKER, ACKER, ACKER)
@@ -5534,9 +5483,9 @@ class Calc_BoWa_V1(modeltools.Method):
     RESULTSEQUENCES = (
 
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5608,7 +5557,7 @@ class Calc_QBGZ_V1(modeltools.Method):
         areas (|WASSER| and |FLUSS|) and also sealed surfaces (|VERS|)
         have no impact on |QBGZ|:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(6)
         >>> lnk(ACKER, ACKER, VERS, WASSER, FLUSS, SEE)
@@ -5643,9 +5592,9 @@ class Calc_QBGZ_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QBGZ,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5666,7 +5615,7 @@ class Calc_QIGZ1_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
         >>> fhru(0.75, 0.25)
@@ -5685,9 +5634,9 @@ class Calc_QIGZ1_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QIGZ1,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5705,7 +5654,7 @@ class Calc_QIGZ2_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
         >>> fhru(0.75, 0.25)
@@ -5724,9 +5673,9 @@ class Calc_QIGZ2_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QIGZ2,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5750,7 +5699,7 @@ class Calc_QDGZ_V1(modeltools.Method):
         type |FLUSS|.  Water areas of type |WASSER| and |SEE| have no
         impact on |QDGZ|:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(5)
         >>> lnk(ACKER, VERS, WASSER, SEE, FLUSS)
@@ -5783,9 +5732,9 @@ class Calc_QDGZ_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_fluxes.QDGZ,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         flu.qdgz = 0.
@@ -5814,7 +5763,7 @@ class Calc_QDGZ1_QDGZ2_V1(modeltools.Method):
         With the value of parameter |A1| set to zero, parameter |A2| defines
         the maximum amount of "slow" direct runoff per time step:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> simulationstep('12h')
         >>> a1(0.0)
@@ -5895,9 +5844,9 @@ class Calc_QDGZ1_QDGZ2_V1(modeltools.Method):
         lland_states.QDGZ2,
         lland_states.QDGZ1,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -5925,7 +5874,7 @@ class Calc_QBGA_V1(modeltools.Method):
 
         A normal test case:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.kb(0.1)
         >>> states.qbgz.old = 2.0
@@ -5959,9 +5908,9 @@ class Calc_QBGA_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QBGA,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         old = model.sequences.states.fastaccess_old
         new = model.sequences.states.fastaccess_new
@@ -5993,7 +5942,7 @@ class Calc_QIGA1_V1(modeltools.Method):
 
         A normal test case:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.ki1(0.1)
         >>> states.qigz1.old = 2.0
@@ -6027,9 +5976,9 @@ class Calc_QIGA1_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QIGA1,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         old = model.sequences.states.fastaccess_old
         new = model.sequences.states.fastaccess_new
@@ -6061,7 +6010,7 @@ class Calc_QIGA2_V1(modeltools.Method):
 
         A normal test case:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.ki2(0.1)
         >>> states.qigz2.old = 2.0
@@ -6095,9 +6044,9 @@ class Calc_QIGA2_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QIGA2,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         old = model.sequences.states.fastaccess_old
         new = model.sequences.states.fastaccess_new
@@ -6128,7 +6077,7 @@ class Calc_QDGA1_V1(modeltools.Method):
 
         A normal test case:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.kd1(0.1)
         >>> states.qdgz1.old = 2.0
@@ -6162,9 +6111,9 @@ class Calc_QDGA1_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QDGA1,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         old = model.sequences.states.fastaccess_old
         new = model.sequences.states.fastaccess_new
@@ -6195,7 +6144,7 @@ class Calc_QDGA2_V1(modeltools.Method):
 
         A normal test case:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> derived.kd2(0.1)
         >>> states.qdgz2.old = 2.0
@@ -6229,9 +6178,9 @@ class Calc_QDGA2_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_states.QDGA2,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         old = model.sequences.states.fastaccess_old
         new = model.sequences.states.fastaccess_new
@@ -6269,7 +6218,7 @@ class Calc_Q_V1(modeltools.Method):
         choose arable land |ACKER| arbitrarily), the different runoff
         components are simply summed up:
 
-        >>> from hydpy.models.lland import *
+        >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(3)
         >>> lnk(ACKER, ACKER, ACKER)
@@ -6383,9 +6332,9 @@ class Calc_Q_V1(modeltools.Method):
         lland_fluxes.Q,
         lland_aides.EPW,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
@@ -6430,9 +6379,9 @@ class Pass_Q_V1(modeltools.Method):
     RESULTSEQUENCES = (
         lland_outlets.Q,
     )
-    
+
     @staticmethod
-    def __call__(model: modeltools.Model) -> None:
+    def __call__(model: 'lland.Model') -> None:
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         out = model.sequences.outlets.fastaccess
@@ -6451,16 +6400,16 @@ class Model(modeltools.AdHocModel):
     INLET_METHODS = ()
     RECEIVER_METHODS = ()
     ADD_METHODS = (
-        Adjust_WindSpeed_V1,
+        Return_AdjustedWindSpeed_V1,
         Calc_PM_Single_V1,
         Calc_Penman_V1,
         Calc_EnergyBalanceSurface_V1,
         Calc_WSensSnow_Single_V1,
-        Calc_SaturationVapourPressure_Single_V1,
-        Calc_ActualVapourPressure_Single_V1,
+        Return_SaturationVapourPressure_V1,
+        Return_ActualVapourPressure_V1,
         Calc_WLatSnow_Single_V1,
         Calc_WSurf_Single_V1,
-        Calc_NetLongwaveRadiation_Single_V1,
+        Return_NetLongwaveRadiation_V1,
     )
     RUN_METHODS = (
         Calc_NKor_V1,
@@ -6488,21 +6437,20 @@ class Model(modeltools.AdHocModel):
         Calc_SKor_V1,
         Calc_F2SIMax_V1,
         Calc_SInzpCap_V1,
-        Calc_F2SIRate_V1,
-        Calc_SInzpRate_V1,
-        Calc_NBes_SInz_V1,
+        # Calc_F2SIRate_V1,
+        # Calc_SInzpRate_V1,  ToDo
+        # Calc_NBes_SInz_V1,
         Calc_SBes_V1,
         Calc_WATS_V1,
         Calc_WaDa_WAeS_V1,
         Calc_WGTF_V1,
         Calc_WNied_V1,
-        Calc_WNied_V2,
-        Update_ESnow_V1,
+        Calc_WNied_ESnow_V1,
         Calc_TZ_V1,
         Calc_WG_V1,
         Calc_TempS_V1,
         Update_TauS_V1,
-        Calc_AlbedoCorr_V1,
+        Calc_ActualAlbedo_V1,
         Calc_NetLongwaveRadiation_V1,
         Calc_NetShortwaveRadiation_V1,
         Calc_NetRadiation_V1,
