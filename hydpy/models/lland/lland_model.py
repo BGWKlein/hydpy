@@ -3892,66 +3892,89 @@ class Calc_DensityAir_V1(modeltools.Method):
 
 
 class Calc_AerodynamicResistance_V1(modeltools.Method):
-    """Calculate aerodynamic resistance. It describes the resistance created
-    by wind.
+    """Calculate the aerodynamic resistance.
 
-    Basic equations:
-        z0 nach Quast und Boehm, 1997
-       :math:`z0 = 0.021 + 0.163 \\cdot cropheight`
+    Basic equations (z0 nach Quast und Boehm, 1997):
+
+       :math:`z_0 = 0.021 + 0.163 \\cdot CropHeight`
+
        :math:`AerodynamicResistance = \\biggl \\lbrace
        {
-       \\frac{6,25}{u_{m,10}}(ln(\\frac{10}{z_{0}}))^{2} z_{0}<1\\,m
+       \\frac{6.25}{WindSpeed10m} \\cdot ln(\\frac{10}{z_0})^2 \\|\\ z_0 < 10
        \\atop
-       \\frac{94}{u_{m,10}} z_{0}\\geqq1\\,m
+       \\frac{94}{WindSpeed10m} z_{0} \\|\\ z_0 \\geq 10
        }`
 
-    Example:
+    Examples:
 
-        Vegetation reduces the wind velocity ander therefore the
-        aerodynamic resistance decreases with crop height.
+        Besides wind speed, aerodynamic resistance depends on the crop height,
+        which typically varies between different land-use classes and, for
+        vegetated surfaces, months.  In the first example, we set some
+        different crop heights for different land-use types to cover the
+        relevant range of values:
 
         >>> from hydpy import pub
         >>> from hydpy.lland import *
         >>> parameterstep()
-        >>> nhru(4)
-        >>> lnk(ACKER, WASSER, LAUBW, NADELW)
-        >>> pub.timegrids = '2019-06-16', '2019-06-17', '1d'
+        >>> nhru(5)
+        >>> lnk(WASSER, ACKER, OBSTB, LAUBW, NADELW)
+        >>> pub.timegrids = '2000-01-30', '2000-02-03', '1d'
         >>> derived.moy.update()
-        >>> cropheight.wasser_jun = 0.05
-        >>> cropheight.acker_jun = 0.6
-        >>> cropheight.laubw_jun = 9.0
-        >>> cropheight.nadelw_jun = 11.0
-        >>> cropheight.wasser_jan = 0.05
-        >>> cropheight.acker_jan = 0.05
-        >>> cropheight.laubw_jan = 2.0
-        >>> cropheight.nadelw_jan = 11.0
+        >>> cropheight.wasser_jan = 0.0
+        >>> cropheight.acker_jan = 1.0
+        >>> cropheight.obstb_jan = 5.0
+        >>> cropheight.laubw_jan = 10.0
+        >>> cropheight.nadelw_jan = 15.0
         >>> fluxes.windspeed10m = 3.0
+        >>> model.idx_sim = 1
         >>> model.calc_aerodynamicresistance_v1()
         >>> fluxes.aerodynamicresistance
-        aerodynamicresistance(40.938736, 71.001889, 7.561677, 31.333333)
+        aerodynamicresistance(79.202731, 33.256788, 12.831028, 31.333333,
+                              31.333333)
 
-        Cropheight changes within the season, this has an influence on
-        aerodynamic resistance:
+        The last example shows an decrease in resistance for increasing
+        crop height for the first three hydrological response units only.
+        When reaching a crop height of 10 m, the calculated resistance
+        increases discontinously (see the fourth response unit) and then
+        remains constant (see the fifth response unit).  In the next
+        example, we set some unrealistic values, to inspect this
+        behaviour more closely:
 
-        >>> pub.timegrids = '2019-01-16', '2019-01-17', '1d'
-        >>> derived.moy.update()
+        >>> cropheight.wasser_feb = 8.0
+        >>> cropheight.acker_feb = 9.0
+        >>> cropheight.obstb_feb = 10.0
+        >>> cropheight.laubw_feb = 11.0
+        >>> cropheight.nadelw_feb = 12.0
+        >>> model.idx_sim = 2
         >>> model.calc_aerodynamicresistance_v1()
         >>> fluxes.aerodynamicresistance
-        aerodynamicresistance(71.001889, 71.001889, 23.53422, 31.333333)
+        aerodynamicresistance(8.510706, 7.561677, 31.333333, 31.333333,
+                              31.333333)
 
-        With increasing wind speed the aerodynamic resistance decreases.
-        For effective cropheights < 10m cropheight has no influence:
+        To get rid of this jump, one could use a threshold crop height
+        of 1.14 m instead of 10 m for the selection of
+        the two underlying equations:
 
-        >>> fluxes.windspeed10m = 12.0
-        >>> model.calc_aerodynamicresistance_v1()
-        >>> fluxes.aerodynamicresistance
-        aerodynamicresistance(17.750472, 17.750472, 5.883555, 7.833333)
+        :math:`1.1404411695422059 = (10/\\exp(\\sqrt(94/6.25))-0.021)/0.163`
+
+        The last example shows the inverse relationship between resistance
+        and wind speed.  For zero wind speed, resistance becomes infinite:
+
+        >>> from hydpy import print_values
+        >>> cropheight(2.0)
+        >>> for ws in (0.0, 0.1, 1.0, 10.0):
+        ...     fluxes.windspeed10m = ws
+        ...     model.calc_aerodynamicresistance_v1()
+        ...     print_values([ws, fluxes.aerodynamicresistance[0]])
+        0.0, inf
+        0.1, 706.026613
+        1.0, 70.602661
+        10.0, 7.060266
 
         .. testsetup::
 
             >>> del pub.timegrids
     """
-
     CONTROLPARAMETERS = (
         lland_control.CropHeight,
         lland_control.Lnk,
@@ -3959,11 +3982,9 @@ class Calc_AerodynamicResistance_V1(modeltools.Method):
     DERIVEDPARAMETERS = (
         lland_derived.MOY,
     )
-
     REQUIREDSEQUENCES = (
         lland_fluxes.WindSpeed10m,
     )
-
     RESULTSEQUENCES = (
         lland_fluxes.AerodynamicResistance,
     )
@@ -3973,53 +3994,105 @@ class Calc_AerodynamicResistance_V1(modeltools.Method):
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
+        if flu.windspeed10m > 0.:
+            for k in range(con.nhru):
+                d_ch = con.cropheight[con.lnk[k]-1, der.moy[model.idx_sim]]
+                if d_ch < 10.:
+                    d_z0 = .021+.163*d_ch
+                    flu.aerodynamicresistance[k] = \
+                        6.25/flu.windspeed10m*modelutils.log(10./d_z0)**2
+                else:
+                    flu.aerodynamicresistance[k] = 94./flu.windspeed10m
+        else:
+            for k in range(con.nhru):
+                flu.aerodynamicresistance[k] = modelutils.inf
 
-        for k in range(con.nhru):
-            d_z0 = \
-                0.021+0.163*con.cropheight[con.lnk[k]-1, der.moy[model.idx_sim]]
-            if con.cropheight[con.lnk[k]-1, der.moy[model.idx_sim]] < 10:
-                flu.aerodynamicresistance[k] = \
-                    6.25/flu.windspeed10m*(modelutils.log(10/d_z0))**2
-            else:
-                flu.aerodynamicresistance[k] = 94/flu.windspeed10m
-            # ToDo: unstetige Funktion.
-            # -> unrealistisch
 
-
-class Calc_SurfaceResistanceBare_V1(modeltools.Method):
-    """Calculate surface resistance of bare soil.
+class Calc_SoilSurfaceResistance_V1(modeltools.Method):
+    """Calculate the surface resistance of the soil surface.
 
     Basic equation:
-       :math:`SurfaceResistanceBare = \\biggl \\lbrace
+       :math:`SoilSurfaceResistance = \\biggl \\lbrace
        {
        100 \\|\\ NFk > 20
        \\atop
-       100 \\cdot \\frac{WMax - PWP}{(BoWa - PWP) + 0.01 \\cdot (Wmax - PWP)}
+       100 \\cdot \\frac{NFk}{max(BoWa-PWP, 0) + NFk/100}
        \\|\\ NFk \\geq 20
        }`
 
-    Example:
+    Examples:
+
+        Water areas and sealed surfaces do not posses a soil, which is why
+        we set the soil surface resistance to |numpy.nan|:
 
         >>> from hydpy.lland import *
         >>> parameterstep()
-        >>> nhru(6)
-        >>> lnk(ACKER)
-        >>> fk(10.0, 20.0, 30.0, 30.0, 40.0, 40.0)
-        >>> pwp(10.0)
+        >>> nhru(4)
+        >>> lnk(VERS, WASSER, FLUSS, SEE)
+        >>> fk(0.0)
+        >>> pwp(0.0)
         >>> derived.nfk.update()
-        >>> derived.nfk
-        nfk(0.0, 10.0, 20.0, 20.0, 30.0, 30.0)
-        >>> states.bowa = 5.0, 10.0, 20.0, 30.0, 40.0, 50.0
-        >>> model.calc_surfaceresistancebare_v1()
-        >>> fluxes.surfaceresistancebare
-        surfaceresistancebare(10000.0, 10000.0, 196.078431, 99.009901, 100.0,
-                              100.0)
+        >>> states.bowa = 0.0
+        >>> model.calc_soilsurfaceresistance_v1()
+        >>> fluxes.soilsurfaceresistance
+        soilsurfaceresistance(nan, nan, nan, nan)
+
+        For "typical" soils, which posses an available field capacity larger
+        than 20 mm, we set the soil surface resistance to 100.0 s/m:
+
+        >>> lnk(ACKER)
+        >>> fk(20.1, 30.0, 40.0, 40.0)
+        >>> pwp(0.0, 0.0, 10.0, 10.0)
+        >>> derived.nfk.update()
+        >>> states.bowa = 0.0, 20.0, 5.0, 30.0
+        >>> model.calc_soilsurfaceresistance_v1()
+        >>> fluxes.soilsurfaceresistance
+        soilsurfaceresistance(100.0, 100.0, 100.0, 100.0)
+
+        For all soils with smaller actual field capacities, resistance
+        is 10'000 s/m as long as the soil water content does not exceed
+        the permanent wilting point:
+
+        >>> pwp(0.1, 20.0, 20.0, 30.0)
+        >>> derived.nfk.update()
+        >>> states.bowa = 0.0, 10.0, 20.0, 30.0
+        >>> model.calc_soilsurfaceresistance_v1()
+        >>> fluxes.soilsurfaceresistance
+        soilsurfaceresistance(10000.0, 10000.0, 10000.0, 10000.0)
+
+        With increasing soil water contents, resistance decreases and
+        reaches a value of 99 s/m:
+
+        >>> pwp(0.0)
+        >>> fk(20.0)
+        >>> derived.nfk.update()
+        >>> states.bowa = 5.0, 10.0, 15.0, 20.0
+        >>> model.calc_soilsurfaceresistance_v1()
+        >>> fluxes.soilsurfaceresistance
+        soilsurfaceresistance(384.615385, 196.078431, 131.578947, 99.009901)
+
+        >>> fk(50.0)
+        >>> pwp(40.0)
+        >>> derived.nfk.update()
+        >>> states.bowa = 42.5, 45.0, 47.5, 50.0
+        >>> model.calc_soilsurfaceresistance_v1()
+        >>> fluxes.soilsurfaceresistance
+        soilsurfaceresistance(384.615385, 196.078431, 131.578947, 99.009901)
+
+        For zero field capacity, we set the soil surface resistance to zero:
+
+        >>> pwp(0.0)
+        >>> fk(0.0)
+        >>> derived.nfk.update()
+        >>> states.bowa = 0.0
+        >>> model.calc_soilsurfaceresistance_v1()
+        >>> fluxes.soilsurfaceresistance
+        soilsurfaceresistance(inf, inf, inf, inf)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
-        lland_control.PWP,
-        lland_control.FK,
         lland_control.Lnk,
+        lland_control.PWP,
     )
     DERIVEDPARAMETERS = (
         lland_derived.NFk,
@@ -4028,7 +4101,7 @@ class Calc_SurfaceResistanceBare_V1(modeltools.Method):
         lland_states.BoWa,
     )
     RESULTSEQUENCES = (
-        lland_fluxes.SurfaceResistanceBare,
+        lland_fluxes.SoilSurfaceResistance,
     )
 
     @staticmethod
@@ -4038,51 +4111,129 @@ class Calc_SurfaceResistanceBare_V1(modeltools.Method):
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if der.nfk[k] > 20.:
-                flu.surfaceresistancebare[k] = 100.
-            elif der.nfk[k] == 0.:
-                flu.surfaceresistancebare[k] = 10000.
+            if con.lnk[k] in (VERS, FLUSS, SEE, WASSER):
+                flu.soilsurfaceresistance[k] = modelutils.nan
+            elif der.nfk[k] > 20.:
+                flu.soilsurfaceresistance[k] = 100.
+            elif der.nfk[k] > 0.:
+                d_free = min(max(sta.bowa[k]-con.pwp[k], 0.), der.nfk[k])
+                flu.soilsurfaceresistance[k] = \
+                    100.*der.nfk[k]/(d_free+.01*der.nfk[k])
             else:
-                d_free = max(min((sta.bowa[k]-con.pwp[k]), con.fk[k]), 0.)
-                flu.surfaceresistancebare[k] = (
-                        100.*der.nfk[k]/(d_free+.01*der.nfk[k]))
+                flu.soilsurfaceresistance[k] = modelutils.inf
 
 
-class Calc_SurfaceResistanceLandUse_V1(modeltools.Method):
-    """Calculate land use specific surface resistance.
+class Calc_LanduseSurfaceResistance_V1(modeltools.Method):
+    """Calculate the surface resistance of vegetation, water and sealed areas.
+
+    Basic equation:
+
+       :math:`LanduseSurfaceResistance = SurfaceResistance* \\cdot
+       (3.5 \\cdot (1 - \\frac{min(BoWa, PWP)}{PWP}) +
+       exp(\\frac{0.2 \\cdot PWP}{min(BoWa, 0)}))`
+
+    Modification for coniferous trees:
+
+       :math:`Deficit = SaturationVapourPressure - ActualVapourPressure`
+
+       :math:`SurfaceResistance* = \\biggl \\lbrace
+       {
+       10'000 \\|\\ TKor \\leq PWP or Deficit \\geq 2
+       \\atop
+       min(\\frac{25 \\cdot SurfaceResistance}{(min(TKor, 20) + 5)
+       \\cdot (1 - Deficit/2)}, 10'000) \\|\\ PWP < TKor < 20
+       }`
 
     Example:
 
-        >>> from hydpy.lland import *
-        >>> from hydpy import pub
-        >>> parameterstep()
-        >>> nhru(6)
-        >>> lnk(ACKER, WASSER, NADELW, NADELW, NADELW, VERS)
-        >>> surfaceresistance.acker_mai = 40.0
-        >>> surfaceresistance.nadelw_mai = 80.0
-        >>> surfaceresistance.wasser_mai = 0.0
-        >>> fluxes.tkor(10.0, 10.0, -3.0, 25.0, -10.0, 5.0)
-        >>> fluxes.saturationvapourpressure(1.227963, 1.227963, 1.227963,
-        ... 1.227963, 2.5, 1.227963)
-        >>> fluxes.actualvapourpressure(0.736778, 0.736778, 0.736778, 0.736778,
-        ... 0.4,  0.736778)
-        >>> fluxes.surfaceresistancebare(100.0)
-        >>> pub.timegrids = '2019-05-16', '2019-05-17', '1d'
-        >>> derived.moy.update()
-        >>> model.calc_surfaceresistancelanduse_v1()
-        >>> fluxes.surfaceresistancelanduse
-        surfaceresistancelanduse(40.0, 0.0, 1159.850611, 106.043484, 10000.0,
-                                 100.0)
+        Method |Calc_LanduseSurfaceResistance_V1| relies on multiple
+        discontinuous relationships, works different for different
+        types of land-use, and uses montly varying base parameters.
+        Hence, we try to start simple and introduce further complexities
+        step by step.
 
-        >>> pub.timegrids = '2019-01-16', '2019-01-17', '1d'
+        For sealed surfaces and water areas the original parameter values
+        are in effect without any modification:
+
+        >>> from hydpy import pub
+        >>> pub.timegrids = '2000-05-30', '2000-06-03', '1d'
+        >>> from hydpy.lland import *
+        >>> parameterstep()
+        >>> nhru(4)
+        >>> lnk(VERS, FLUSS, SEE, WASSER)
+        >>> surfaceresistance.fluss_mai = 0.0
+        >>> surfaceresistance.see_mai = 0.0
+        >>> surfaceresistance.wasser_mai = 0.0
+        >>> surfaceresistance.vers_mai = 500.0
         >>> derived.moy.update()
-        >>> surfaceresistance.acker_jan = 10.0
-        >>> surfaceresistance.nadelw_jan = 60.0
-        >>> surfaceresistance.wasser_jan = 0.0
-        >>> model.calc_surfaceresistancelanduse_v1()
-        >>> fluxes.surfaceresistancelanduse
-        surfaceresistancelanduse(10.0, 0.0, 1159.850611, 79.532613, 10000.0,
-                                 100.0)
+        >>> model.idx_sim = 1
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(500.0, 0.0, 0.0, 0.0)
+
+        For all "soil areas", we sligthly increase the original parameter
+        value by a constant factor for wet soils (|BoWa| > |PWP) and
+        increase it even more for dry soils (|BoWa| > |PWP).  For
+        a completely dry soil, surface resistance becomes infinite:
+
+        >>> lnk(ACKER)
+        >>> pwp(0.0)
+        >>> surfaceresistance.acker_jun = 40.0
+        >>> states.bowa = 0.0, 10.0, 20.0, 30.0
+        >>> model.idx_sim = 2
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(inf, 48.85611, 48.85611, 48.85611)
+
+        >>> pwp(20.0)
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(inf, 129.672988, 48.85611, 48.85611)
+
+        >>> states.bowa = 17.0, 18.0, 19.0, 20.0
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(71.611234, 63.953955, 56.373101, 48.85611)
+
+        Only for coniferous trees, we further increase surface resistance
+        for low temperatures and high water vapour pressure deficits.
+        The highest resistance value results from air temperatures lower
+        than -5 °C or vapour deficits higher than 2 kPa:
+
+        >>> lnk(NADELW)
+        >>> surfaceresistance.nadelw_jun = 80.0
+        >>> states.bowa = 20.0
+        >>> fluxes.tkor = 30.0
+        >>> fluxes.saturationvapourpressure = 3.0
+        >>> fluxes.actualvapourpressure = 0.0, 1.0, 2.0, 3.0
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(12214.027582, 12214.027582, 195.424441,
+                                 97.712221)
+
+        >>> fluxes.actualvapourpressure = 1.0, 1.01, 1.1, 1.2
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(12214.027582, 12214.027582, 1954.244413,
+                                 977.122207)
+
+        >>> fluxes.actualvapourpressure = 2.0
+        >>> fluxes.tkor = -10.0, 5.0, 20.0, 35.0
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(12214.027582, 488.561103, 195.424441,
+                                 195.424441)
+
+        >>> fluxes.tkor = -6.0, -5.0, -4.0, -3.0
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(12214.027582, 12214.027582, 4885.611033,
+                                 2442.805516)
+
+        >>> fluxes.tkor = 18.0, 19.0, 20.0, 21.0
+        >>> model.calc_landusesurfaceresistance_v1()
+        >>> fluxes.landusesurfaceresistance
+        landusesurfaceresistance(212.417871, 203.567126, 195.424441, 195.424441)
 
         .. testsetup::
 
@@ -4099,10 +4250,10 @@ class Calc_SurfaceResistanceLandUse_V1(modeltools.Method):
         lland_fluxes.TKor,
         lland_fluxes.SaturationVapourPressure,
         lland_fluxes.ActualVapourPressure,
-        lland_fluxes.SurfaceResistanceBare,
+        lland_fluxes.SoilSurfaceResistance,
     )
     RESULTSEQUENCES = (
-        lland_fluxes.SurfaceResistanceLandUse,
+        lland_fluxes.LanduseSurfaceResistance,
     )
 
     @staticmethod
@@ -4110,109 +4261,35 @@ class Calc_SurfaceResistanceLandUse_V1(modeltools.Method):
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        for k in range(con.nhru):
-            if con.lnk[k] == NADELW:
-                # calculate surface resistance correction for air temperature
-                if flu.tkor[k] < -5:
-                    d_surfaceresistancecorrt = 10000.
-                elif -5. < flu.tkor[k] < 20.:
-                    d_surfaceresistancecorrt = (25 * 70) / (flu.tkor[k] + 5)
-                else:
-                    d_surfaceresistancecorrt = \
-                        con.surfaceresistance[con.lnk[k] - 1, der.moy[
-                            model.idx_sim]]
-                # calculate surface resistance correction for saturation deficit
-                if (flu.saturationvapourpressure[k] -
-                        flu.actualvapourpressure[k] < 2):
-                    d_de = (flu.saturationvapourpressure[k] -
-                            flu.actualvapourpressure[k])
-                    flu.surfaceresistancelanduse[k] = \
-                        d_surfaceresistancecorrt / (1 - 0.5 * d_de)
-                else:
-                    flu.surfaceresistancelanduse[k] = 10000.
-            elif con.lnk[k] == VERS:
-                flu.surfaceresistancelanduse[k] = flu.surfaceresistancebare[k]
-            else:
-                flu.surfaceresistancelanduse[k] = \
-                    con.surfaceresistance[con.lnk[k] - 1, der.moy[
-                        model.idx_sim]]
-
-
-class Calc_SurfaceResistanceMoist_V1(modeltools.Method):
-    """Calculate soil moisture dependent surface resistance.
-
-    Basic equation:
-       :math:`SurfaceresistanceMoist = \\biggl \\lbrace
-       {
-       SurfaceResistanceLanduse \\cdot (3.5 + exp(0.2)) \\|\\ BoWa > PWP
-       \\atop
-       SurfaceResistanceLanduse \\cdot (3.5 \\cdot (1 - BoWa / PWP) +
-       exp(0.2 \\cdot \\frac{PWP}{BoWa})) \\|\\ BoWa \\leq PWP
-       }`
-
-    Example:
-
-        >>> from hydpy.lland import *
-        >>> parameterstep()
-        >>> nhru(7)
-        >>> pwp(30.0)
-        >>> lnk(WASSER, WASSER, ACKER, ACKER, ACKER, ACKER, ACKER)
-        >>> states.bowa = 0.0, 20.0, 0.0, 15.0, 30.0, 45.0, 150.0
-        >>> fluxes.surfaceresistancelanduse = (0.0, 0.0, 40.0, 40.0, 40.0, 40.0,
-        ...     40.0)
-        >>> model.calc_surfaceresistancemoist_v1()
-        >>> fluxes.surfaceresistancemoist
-        surfaceresistancemoist(0.0, 0.0, inf, 129.672988, 48.85611, 48.85611,
-                               48.85611)
-        >>> control.pwp(0.0)
-        >>> model.calc_surfaceresistancemoist_v1()
-        >>> fluxes.surfaceresistancemoist
-        surfaceresistancemoist(0.0, 0.0, inf, 48.85611, 48.85611, 48.85611,
-                               48.85611)
-    """
-    CONTROLPARAMETERS = (
-        lland_control.PWP,
-        lland_control.NHRU,
-        lland_control.Lnk,
-    )
-
-    REQUIREDSEQUENCES = (
-        lland_states.BoWa,
-        lland_fluxes.SurfaceResistanceLandUse,
-    )
-
-    RESULTSEQUENCES = (
-        lland_fluxes.SurfaceResistanceMoist,
-    )
-
-    @staticmethod
-    def __call__(model: 'lland.Model') -> None:
-        con = model.parameters.control.fastaccess
-        flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if con.lnk[k] in (WASSER, FLUSS, SEE):
-                # todo: Nan-Werte für Wasserflächen sinnvoller?
-                flu.surfaceresistancemoist[k] = flu.surfaceresistancelanduse[k]
-            elif (sta.bowa[k] == 0.) and (flu.surfaceresistancelanduse[k] != 0):
-                flu.surfaceresistancemoist[k] = modelutils.inf
-            elif sta.bowa[k] > con.pwp[k]:
-                flu.surfaceresistancemoist[k] = \
-                    flu.surfaceresistancelanduse[k]*(modelutils.exp(.2))
+            d_res = con.surfaceresistance[con.lnk[k]-1, der.moy[model.idx_sim]]
+            if con.lnk[k] == NADELW:
+                d_def = \
+                    flu.saturationvapourpressure[k]-flu.actualvapourpressure[k]
+                if (flu.tkor[k] <= -5.) or (d_def >= 2.):
+                    flu.landusesurfaceresistance[k] = 10000.
+                elif flu.tkor[k] < 20.:
+                    flu.landusesurfaceresistance[k] = min(
+                        (25.*d_res)/(flu.tkor[k]+5.)/(1.-.5*d_def), 10000.)
+                else:
+                    flu.landusesurfaceresistance[k] = min(
+                        d_res/(1.-.5*d_def), 10000.)
             else:
-                flu.surfaceresistancemoist[k] = (
-                    flu.surfaceresistancelanduse[k] *
-                    (3.5*(1.-sta.bowa[k]/con.pwp[k]) +
-                     modelutils.exp(.2*con.pwp[k]/sta.bowa[k]))
-                )
+                flu.landusesurfaceresistance[k] = d_res
+            if con.lnk[k] not in (WASSER, FLUSS, SEE, VERS):
+                if sta.bowa[k] <= 0.:
+                    flu.landusesurfaceresistance[k] = modelutils.inf
+                if sta.bowa[k] < con.pwp[k]:
+                    flu.landusesurfaceresistance[k] *= (
+                        3.5*(1.-sta.bowa[k]/con.pwp[k]) +
+                        modelutils.exp(.2*con.pwp[k]/sta.bowa[k]))
+                else:
+                    flu.landusesurfaceresistance[k] *= modelutils.exp(.2)
 
-        # TODO: frei verfügbares Bodenwasser entspricht WMax - PWP?
-        # TODO: entspricht Schwellenwert pflanzengebundenes Wasser Py - PWP?
-        # TODO: PWP bei erweiterten Bodenparametern eigentlich nicht vorhanden
 
-
-class Calc_SurfaceResistanceCorr_V1(modeltools.Method):
-    """Calculate corrected surface resistance.
+class Calc_SurfaceResistance_V1(modeltools.Method):
+    """Calculate the total surface resistance.
 
     Basic equations:
       ResDay:
@@ -4228,25 +4305,25 @@ class Calc_SurfaceResistanceCorr_V1(modeltools.Method):
 
     Example:
 
-        >>> from hydpy.lland import *
         >>> from hydpy import pub
+        >>> pub.timegrids = '2019-05-30', '2019-06-03', '1d'
+        >>> from hydpy.lland import *
         >>> parameterstep()
-        >>> nhru(5)
-        >>> lnk(ACKER, WASSER, NADELW, NADELW, NADELW)
-        >>> lai.nadelw = 5.0
+        >>> nhru(4)
+        >>> lnk(WASSER, LAUBW, LAUBW, LAUBW)
         >>> lai.wasser = 0.0
-        >>> lai.acker = 1.0
-        >>> fluxes.surfaceresistancebare(100.0)
-        >>> fluxes.surfaceresistancemoist(188.85611, 0.0, 5476.121874,
-        ... 500.673998, 47214.027582)
-        >>> pub.timegrids = '2019-05-16', '2019-05-17', '1d'
+        >>> lai.laubw_mai = 5.0
+        >>> lai.laubw_jun = 6.0
         >>> derived.moy.update()
         >>> derived.seconds.update()
-        >>> fluxes.possiblesunshineduration(11.02503)
-        >>> model.calc_surfaceresistancecorr_v1()
-        >>> fluxes.surfaceresistancecorr
-        surfaceresistancecorr(142.36436, 0.0, 494.600634, 270.531886, \
-533.941016)
+        >>> fluxes.soilsurfaceresistance = 100.0
+        >>> fluxes.landusesurfaceresistance = (
+        ...     0.0, 5476.121874, 500.673998, 47214.027582)
+        >>> fluxes.possiblesunshineduration = 11.02503
+        >>> model.idx_sim = 1
+        >>> model.calc_surfaceresistance_v1()
+        >>> fluxes.surfaceresistance
+        surfaceresistance(0.0, 494.600634, 270.531886, 533.941016)
 
         .. testsetup::
 
@@ -4260,13 +4337,13 @@ class Calc_SurfaceResistanceCorr_V1(modeltools.Method):
         lland_derived.MOY,
     )
     REQUIREDSEQUENCES = (
-        lland_fluxes.SurfaceResistanceBare,
-        lland_fluxes.SurfaceResistanceMoist,
+        lland_fluxes.SoilSurfaceResistance,
+        lland_fluxes.LanduseSurfaceResistance,
         lland_fluxes.PossibleSunshineDuration,
     )
 
     RESULTSEQUENCES = (
-        lland_fluxes.SurfaceResistanceCorr,
+        lland_fluxes.SurfaceResistance,
     )
 
     @staticmethod
@@ -4274,25 +4351,25 @@ class Calc_SurfaceResistanceCorr_V1(modeltools.Method):
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        d_hours = der.seconds / 60. / 60.
+        d_hours = der.seconds/60./60.
         for k in range(con.nhru):
-            if flu.surfaceresistancemoist[k] == 0.:
-                flu.surfaceresistancecorr[k] = 0.
+            if con.lnk[k] in (VERS, FLUSS, SEE, WASSER):
+                flu.surfaceresistance[k] = flu.landusesurfaceresistance[k]
             else:
                 d_surfaceresistanceday = (
                     1 /
                     (((1-0.7**con.lai[con.lnk[k]-1,
                                       der.moy[model.idx_sim]]) /
-                      flu.surfaceresistancemoist[k]) +
+                      flu.landusesurfaceresistance[k]) +
                      0.7**con.lai[con.lnk[k]-1, der.moy[model.idx_sim]] /
-                     flu.surfaceresistancebare[k])
+                     flu.soilsurfaceresistance[k])
                 )
                 d_surfaceresistancenight = (
                     1 /
                     (con.lai[con.lnk[k]-1, der.moy[model.idx_sim]]/2500 +
-                     1/flu.surfaceresistancemoist[k]))
+                     1/flu.landusesurfaceresistance[k]))
 
-                flu.surfaceresistancecorr[k] = (
+                flu.surfaceresistance[k] = (
                     1 /
                     ((flu.possiblesunshineduration/d_hours) *
                      1/d_surfaceresistanceday +
@@ -4355,7 +4432,7 @@ class Calc_PM_Single_V1(modeltools.Method):
         ...     1.29, 1.29, 1.24, 1.29, 1.29, 1.24)
         >>> fluxes.aerodynamicresistance(
         ...     120.4, 120.4, 120.4, 31.9, 31.9, 31.9)
-        >>> fluxes.surfaceresistancecorr(
+        >>> fluxes.surfaceresistance(
         ...     64.9, 64.9, 64.9, 109.4, 109.4, 109.4)
         >>> fluxes.densityair(
         ...     1.29, 1.28, 1.24, 1.29, 1.28, 1.24)
@@ -4397,7 +4474,7 @@ class Calc_PM_Single_V1(modeltools.Method):
         lland_fluxes.PsychrometricConstant,
         lland_fluxes.DensityAir,
         lland_fluxes.AerodynamicResistance,
-        lland_fluxes.SurfaceResistanceCorr,
+        lland_fluxes.SurfaceResistance,
         lland_fluxes.WG,
         lland_fluxes.NetRadiation,
     )
@@ -4527,7 +4604,7 @@ class Calc_EvPo_V2(modeltools.Method):
         ...     1.29, 1.29, 1.24, 1.29, 1.29, 1.24, 1.29, 1.29, 1.24)
         >>> fluxes.aerodynamicresistance(
         ...     120.4, 120.4, 120.4, 31.9, 31.9, 31.9, 120.4, 120.4, 120.4)
-        >>> fluxes.surfaceresistancecorr(
+        >>> fluxes.surfaceresistance(
         ...     64.9, 64.9, 64.9, 109.4, 109.4, 109.4, 0.0, 0.0, 0.0)
         >>> fluxes.densityair(
         ...     1.29, 1.28, 1.24, 1.29, 1.28, 1.24, 1.29, 1.28, 1.24)
@@ -4816,7 +4893,7 @@ class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
         ...     1.29, 1.29, 1.24, 1.29, 1.29, 1.24, 1.29, 1.29, 1.24)
         >>> fluxes.aerodynamicresistance(
         ...     120.4, 120.4, 120.4, 31.9, 31.9, 31.9, 120.4, 120.4, 120.4)
-        >>> fluxes.surfaceresistancecorr(
+        >>> fluxes.surfaceresistance(
         ...     64.9, 64.9, 64.9, 109.4, 109.4, 109.4, 0.0, 0.0, 0.0)
         >>> fluxes.densityair(
         ...     1.29, 1.28, 1.24, 1.29, 1.28, 1.24, 1.29, 1.28, 1.24)
@@ -4847,7 +4924,7 @@ class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
         lland_fluxes.ActualVapourPressure,
         lland_fluxes.SaturationVapourPressure,
         lland_fluxes.AerodynamicResistance,
-        lland_fluxes.SurfaceResistanceCorr,
+        lland_fluxes.SurfaceResistance,
         lland_fluxes.TKor,
         lland_fluxes.PsychrometricConstant,
         lland_fluxes.EvPoWater,
@@ -4872,7 +4949,7 @@ class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
                 flu.evb[k] = 0
             else:
                 d_ev_boden = model.calc_pm_single_v1(
-                    k, flu.surfaceresistancecorr[k])
+                    k, flu.surfaceresistance[k])
                 flu.evb[k] = (flu.evpo[k]-flu.evi[k])/flu.evpo[k]*d_ev_boden
 
 
@@ -6458,10 +6535,9 @@ class Model(modeltools.AdHocModel):
         Calc_DryAirPressure_V1,
         Calc_DensityAir_V1,
         Calc_AerodynamicResistance_V1,
-        Calc_SurfaceResistanceBare_V1,
-        Calc_SurfaceResistanceLandUse_V1,
-        Calc_SurfaceResistanceMoist_V1,
-        Calc_SurfaceResistanceCorr_V1,
+        Calc_SoilSurfaceResistance_V1,
+        Calc_LanduseSurfaceResistance_V1,
+        Calc_SurfaceResistance_V1,
         Calc_EvPo_V2,
         Calc_EvPo_V3,
         Calc_EvPoWater_V1,

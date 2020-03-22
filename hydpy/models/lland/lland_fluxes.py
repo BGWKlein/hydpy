@@ -186,22 +186,17 @@ class AerodynamicResistance(sequencetools.FluxSequence):
     NDIM, NUMERIC, SPAN = 1, False, (0., None)
 
 
-class SurfaceResistanceBare(sequencetools.FluxSequence):
+class SoilSurfaceResistance(sequencetools.FluxSequence):
     """Oberflächenwiderstand (surface resistance) [s/m]."""
     NDIM, NUMERIC, SPAN = 1, False, (0., None)
 
 
-class SurfaceResistanceLandUse(sequencetools.FluxSequence):
+class LanduseSurfaceResistance(sequencetools.FluxSequence):
     """Oberflächenwiderstand (surface resistance) [s/m]."""
     NDIM, NUMERIC, SPAN = 1, False, (0., None)
 
 
-class SurfaceResistanceMoist(sequencetools.FluxSequence):
-    """Oberflächenwiderstand (surface resistance) [s/m]."""
-    NDIM, NUMERIC, SPAN = 1, False, (0., None)
-
-
-class SurfaceResistanceCorr(sequencetools.FluxSequence):
+class SurfaceResistance(sequencetools.FluxSequence):
     """Oberflächenwiderstand (surface resistance) [s/m]."""
     NDIM, NUMERIC, SPAN = 1, False, (0., None)
 

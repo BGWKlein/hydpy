@@ -454,4 +454,4 @@ class NFk(lland_parameters.ParameterSoil):
         nfk(80.0)
         """
         con = self.subpars.pars.control
-        self.value = con.fk - con.pwp
+        self.value = con.fk-con.pwp
