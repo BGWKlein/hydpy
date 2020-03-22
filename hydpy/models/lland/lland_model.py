@@ -4310,20 +4310,62 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
         >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(4)
-        >>> lnk(WASSER, LAUBW, LAUBW, LAUBW)
-        >>> lai.wasser = 0.0
-        >>> lai.laubw_mai = 5.0
-        >>> lai.laubw_jun = 6.0
+        >>> lnk(VERS, FLUSS, SEE, WASSER)
         >>> derived.moy.update()
         >>> derived.seconds.update()
-        >>> fluxes.soilsurfaceresistance = 100.0
-        >>> fluxes.landusesurfaceresistance = (
-        ...     0.0, 5476.121874, 500.673998, 47214.027582)
-        >>> fluxes.possiblesunshineduration = 11.02503
+        >>> fluxes.soilsurfaceresistance = nan
+        >>> fluxes.landusesurfaceresistance = 500.0, 0.0, 0.0, 0.0
         >>> model.idx_sim = 1
         >>> model.calc_surfaceresistance_v1()
         >>> fluxes.surfaceresistance
-        surfaceresistance(0.0, 494.600634, 270.531886, 533.941016)
+        surfaceresistance(500.0, 0.0, 0.0, 0.0)
+
+        >>> lnk(ACKER, OBSTB, LAUBW, NADELW)
+        >>> lai.acker_mai = 0.0
+        >>> lai.obstb_mai = 2.0
+        >>> lai.laubw_mai = 5.0
+        >>> lai.nadelw_mai = 10.0
+        >>> fluxes.soilsurfaceresistance = 200.0
+        >>> fluxes.landusesurfaceresistance = 100.0
+        >>> fluxes.possiblesunshineduration = 24.0
+        >>> model.calc_surfaceresistance_v1()
+        >>> fluxes.surfaceresistance
+        surfaceresistance(200.0, 132.450331, 109.174477, 101.43261)
+
+        >>> fluxes.possiblesunshineduration = 0.0
+        >>> model.calc_surfaceresistance_v1()
+        >>> fluxes.surfaceresistance
+        surfaceresistance(200.0, 172.413793, 142.857143, 111.111111)
+
+        >>> fluxes.possiblesunshineduration = 12.0
+        >>> model.calc_surfaceresistance_v1()
+        >>> fluxes.surfaceresistance
+        surfaceresistance(200.0, 149.812734, 123.765057, 106.051498)
+
+        >>> pub.timegrids = '2019-05-30', '2019-06-03', '1h'
+        >>> nhru(1)
+        >>> lnk(NADELW)
+        >>> fluxes.soilsurfaceresistance = 200.0
+        >>> fluxes.landusesurfaceresistance = 100.0
+        >>> derived.moy.update()
+        >>> derived.seconds.update()
+        >>> lai.nadelw_jun = 5.0
+        >>> model.idx_sim = pub.timegrids.init['2019-06-01 00:00']
+        >>> fluxes.possiblesunshineduration = 1.0
+        >>> model.calc_surfaceresistance_v1()
+        >>> fluxes.surfaceresistance
+        surfaceresistance(109.174477)
+
+        >>> fluxes.possiblesunshineduration = 0.0
+        >>> model.calc_surfaceresistance_v1()
+        >>> fluxes.surfaceresistance
+        surfaceresistance(142.857143)
+
+        >>> fluxes.possiblesunshineduration = 0.5
+        >>> model.calc_surfaceresistance_v1()
+        >>> fluxes.surfaceresistance
+        surfaceresistance(123.765057)
+
 
         .. testsetup::
 
@@ -4356,25 +4398,16 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
             if con.lnk[k] in (VERS, FLUSS, SEE, WASSER):
                 flu.surfaceresistance[k] = flu.landusesurfaceresistance[k]
             else:
-                d_surfaceresistanceday = (
-                    1 /
-                    (((1-0.7**con.lai[con.lnk[k]-1,
-                                      der.moy[model.idx_sim]]) /
-                      flu.landusesurfaceresistance[k]) +
-                     0.7**con.lai[con.lnk[k]-1, der.moy[model.idx_sim]] /
-                     flu.soilsurfaceresistance[k])
-                )
-                d_surfaceresistancenight = (
-                    1 /
-                    (con.lai[con.lnk[k]-1, der.moy[model.idx_sim]]/2500 +
-                     1/flu.landusesurfaceresistance[k]))
-
+                d_lai = con.lai[con.lnk[k]-1, der.moy[model.idx_sim]]
+                d_invrestday = (
+                    ((1.-.7**d_lai)/flu.landusesurfaceresistance[k]) +
+                    .7**d_lai/flu.soilsurfaceresistance[k])
+                d_invrestnight = \
+                    d_lai/2500.+1./flu.soilsurfaceresistance[k]
                 flu.surfaceresistance[k] = (
-                    1 /
-                    ((flu.possiblesunshineduration/d_hours) *
-                     1/d_surfaceresistanceday +
-                     (1-flu.possiblesunshineduration/d_hours) *
-                     1/d_surfaceresistancenight))
+                    1. /
+                    (flu.possiblesunshineduration/d_hours*d_invrestday +
+                     (1.-flu.possiblesunshineduration/d_hours)*d_invrestnight))
 
 
 class Calc_PM_Single_V1(modeltools.Method):
