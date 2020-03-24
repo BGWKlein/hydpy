@@ -3,6 +3,8 @@
 # pylint: enable=missing-docstring
 """
 .. _`Allen`: http://www.fao.org/3/x0490e/x0490e00.htm
+.. _`ATV-DVWK-M 504`: \
+https://webshop.dwa.de/de/merkblatt-atv-dvwk-m-504-september-2002.html
 """
 # imports...
 # ...from standard library
@@ -10,7 +12,6 @@ from typing import *
 # ...from HydPy
 from hydpy.core import modeltools
 from hydpy.auxs import roottools
-from hydpy.core.typingtools import Vector
 from hydpy.cythons import modelutils
 # ...from lland
 from hydpy.models.lland import lland_control
@@ -1152,8 +1153,6 @@ class Calc_EvPo_V1(modeltools.Method):
         >>> model.calc_evpo_v1()
         >>> fluxes.evpo
         evpo(2.608, 2.73)
-        >>> fluxes.evpowater
-        evpowater(2.608, 2.73)
 
         .. testsetup::
 
@@ -1172,7 +1171,6 @@ class Calc_EvPo_V1(modeltools.Method):
     )
     RESULTSEQUENCES = (
         lland_fluxes.EvPo,
-        lland_fluxes.EvPoWater,
     )
 
     @staticmethod
@@ -1183,7 +1181,6 @@ class Calc_EvPo_V1(modeltools.Method):
         for k in range(con.nhru):
             flu.evpo[k] = \
                 con.fln[con.lnk[k] - 1, der.moy[model.idx_sim]] * flu.et0[k]
-            flu.evpowater[k] = flu.evpo[k]
 
 
 class Calc_NBes_Inzp_V1(modeltools.Method):
@@ -3737,7 +3734,7 @@ class Calc_FVG_V1(modeltools.Method):
 
 
 class Calc_EvB_V1(modeltools.Method):
-    """Calculate the actual soil lland evaporation.
+    """Calculate the actual soil evapotranspiration.
 
     Basic equations:
       :math:`temp = exp(-GrasRef_R \\cdot \\frac{BoWa}{WMax})`
@@ -3747,13 +3744,15 @@ class Calc_EvB_V1(modeltools.Method):
 
     Examples:
 
-        Soil llandevaporation is calculated neither for water nor for sealed
-        areas (see the first three HRUs of type |FLUSS|, |SEE|, and |VERS|).
-        Instead it is set to the evaporation over water surfaces.
-        All other land use classes are handled in accordance with a
-        recommendation of the set of codes described in ATV-DVWK-M 504
-        (arable land |ACKER| has been selected for the last four HRUs
-        arbitrarily):
+        Soil evapotranspiration is calculated neither for water nor for
+        sealed areas (see the first three hydrological reponse units of
+        type |FLUSS|, |SEE|, and |VERS|).  All other land use classes are
+        handled in accordance with a recommendation of the set of codes
+        described in `ATV-DVWK-M 504`_.  In case maximum soil water storage
+        (|WMax|) is zero, soil evaporation (|EvB|) is generally set to zero
+        (see the fourth hydrological response unit).  The last three response
+        units demonstrate the rise in soil evaporation with increasing
+        soil moisture, which is lessening in the high soil moisture range:
 
         >>> from hydpy.lland import *
         >>> parameterstep('1d')
@@ -3762,17 +3761,11 @@ class Calc_EvB_V1(modeltools.Method):
         >>> grasref_r(5.0)
         >>> wmax(100.0, 100.0, 100.0, 0.0, 100.0, 100.0, 100.0)
         >>> fluxes.evpo = 5.0
-        >>> fluxes.evpowater = 5.0
         >>> fluxes.evi = 3.0
         >>> states.bowa = 50.0, 50.0, 50.0, 0.0, 0.0, 50.0, 100.0
         >>> model.calc_evb_v1()
         >>> fluxes.evb
-        evb(5.0, 5.0, 5.0, 0.0, 0.0, 1.717962, 2.0)
-
-        In case maximum soil water storage (|WMax|) is zero, soil evaporation
-        (|EvB|) is generally set to zero (see the forth HRU).  The last
-        three HRUs demonstrate the rise in soil evaporation with increasing
-        soil moisture, which is lessening in the high soil moisture range.
+        evb(0.0, 0.0, 0.0, 0.0, 0.0, 1.717962, 2.0)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -3795,17 +3788,12 @@ class Calc_EvB_V1(modeltools.Method):
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if con.lnk[k] in (VERS, WASSER, FLUSS, SEE):
-                flu.evb[k] = flu.evpo[k]
-            elif con.wmax[k] <= 0.:
+            if con.lnk[k] in (VERS, WASSER, FLUSS, SEE) or con.wmax[k] <= 0.:
                 flu.evb[k] = 0.
             else:
-                d_temp = modelutils.exp(-con.grasref_r *
-                                        sta.bowa[k] / con.wmax[k])
-                flu.evb[k] = (
-                    (flu.evpo[k] - flu.evi[k]) * (1. - d_temp) /
-                    (1. + d_temp - 2. * modelutils.exp(-con.grasref_r))
-                )
+                d_temp = modelutils.exp(-con.grasref_r*sta.bowa[k]/con.wmax[k])
+                flu.evb[k] = ((flu.evpo[k]-flu.evi[k])*(1.-d_temp) /
+                              (1.+d_temp-2.*modelutils.exp(-con.grasref_r)))
 
 
 class Calc_DryAirPressure_V1(modeltools.Method):
@@ -4292,18 +4280,24 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
     """Calculate the total surface resistance.
 
     Basic equations:
-      ResDay:
-      :math:`\\frac {1}{\\frac{1-0.7^{LAI}}{flu.surfaceresistancemoist[k]} +
-      \\frac{0.7^{LAI}}{SurfaceResistanceBare}}`
+      :math:`SurfaceRestance_{day} = \\frac{1}
+      {\\frac{1-0.7^{LAI}}{LanduseSurfaceResistance} +
+      \\frac{0.7^{LAI}}{SoilSurfaceResistance}}`
 
-      ResNight:
-      :math:`\\frac{1}{\\frac{LAI}{2500} + \\frac{1}{SurfacResistanceMoist}}`
+      :math:`SurfaceRestance_{night} = \\frac{1}
+      {\\frac{LAI}{2500} + \\frac{1}{LanduseSurfaceResistance}}`
 
-      :math:`SurfaceresistanceCorr = \\frac{1}{\\frac{PossibleSunshineDuration}
-      {hours} \\cdot \frac{1}{ResDay + (1-\\frac{PossibleSunshineDuration}
-      {hours} \\cdot \\frac{1}{ResNight})}`
+      :math:`w = \\frac{PossibleSunshineDuration}{Seconds / 60 / 60}`
 
-    Example:
+      :math:`Surfaceresistance = \\frac{1}
+      {x \\cdot \\frac{1}{SurfaceRestance_{day}} +
+      (1-x) \\cdot \\frac{1}{SurfaceRestance_{night}}}`
+
+    Examples:
+
+        For sealed surfaces and water areas, method |Calc_SurfaceResistance_V1|
+        just the values of sequence |LanduseSurfaceResistance| as the
+        effective surface resistance values:
 
         >>> from hydpy import pub
         >>> pub.timegrids = '2019-05-30', '2019-06-03', '1d'
@@ -4320,29 +4314,59 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
         >>> fluxes.surfaceresistance
         surfaceresistance(500.0, 0.0, 0.0, 0.0)
 
+        For all other landuse types, the final soil resistance is a
+        combination of |LanduseSurfaceResistance| and |SoilSurfaceResistance|
+        that depends on the leaf area index.  We demonstrate this for the
+        landuse types |ACKER|, |OBSTB|, |LAUBW|, and |NADELW|, for which we
+        define different leaf area indices:
+
         >>> lnk(ACKER, OBSTB, LAUBW, NADELW)
         >>> lai.acker_mai = 0.0
         >>> lai.obstb_mai = 2.0
         >>> lai.laubw_mai = 5.0
         >>> lai.nadelw_mai = 10.0
+
+        The soil and landuse surface resistance are identical for all
+        four hydrological response units:
+
         >>> fluxes.soilsurfaceresistance = 200.0
         >>> fluxes.landusesurfaceresistance = 100.0
+
+        When we assume that the sun shines the whole day, the final
+        resistance is identical with the soil surface resistance for
+        zero leaf area indices (see the first response unit) and
+        becomes closer to landuse surface resistance for when the
+        leaf area index increases:
+
         >>> fluxes.possiblesunshineduration = 24.0
         >>> model.calc_surfaceresistance_v1()
         >>> fluxes.surfaceresistance
         surfaceresistance(200.0, 132.450331, 109.174477, 101.43261)
+
+        For a polar night, there is a leaf area index-dependend interpolation
+        between soil surface resistance and a fixed resistance value:
 
         >>> fluxes.possiblesunshineduration = 0.0
         >>> model.calc_surfaceresistance_v1()
         >>> fluxes.surfaceresistance
         surfaceresistance(200.0, 172.413793, 142.857143, 111.111111)
 
+        For all days that are not polar nights or polar days, the values
+        of the two examples above are weighted based on the possible
+        sunshine duration of that day:
+
         >>> fluxes.possiblesunshineduration = 12.0
         >>> model.calc_surfaceresistance_v1()
         >>> fluxes.surfaceresistance
         surfaceresistance(200.0, 149.812734, 123.765057, 106.051498)
 
-        >>> pub.timegrids = '2019-05-30', '2019-06-03', '1h'
+        The following examples demonstrate that method
+        |Calc_SurfaceResistance_V1| works similar when applied on an
+        hourly time basis during the daytime period (first example),
+        during the nighttime (second example), and during dawn or
+        dusk (third example):
+
+        >>> pub.timegrids = '2019-05-31 22:00', '2019-06-01 03:00', '1h'
         >>> nhru(1)
         >>> lnk(NADELW)
         >>> fluxes.soilsurfaceresistance = 200.0
@@ -4350,7 +4374,7 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
         >>> derived.moy.update()
         >>> derived.seconds.update()
         >>> lai.nadelw_jun = 5.0
-        >>> model.idx_sim = pub.timegrids.init['2019-06-01 00:00']
+        >>> model.idx_sim = 2
         >>> fluxes.possiblesunshineduration = 1.0
         >>> model.calc_surfaceresistance_v1()
         >>> fluxes.surfaceresistance
@@ -4365,7 +4389,6 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
         >>> model.calc_surfaceresistance_v1()
         >>> fluxes.surfaceresistance
         surfaceresistance(123.765057)
-
 
         .. testsetup::
 
@@ -4410,171 +4433,251 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
                      (1.-flu.possiblesunshineduration/d_hours)*d_invrestnight))
 
 
-class Calc_PM_Single_V1(modeltools.Method):
-    """Calculate llandevapootranspiration according to Penman-Monteith
+class Return_PenmanMonteith_V1(modeltools.Method):
+    """Calculate evapootranspiration according to Penman-Monteith
 
-    # ToDo: c_p
     Basic equations:
-    :math:`EvPo = \\frac
-    {\\Delta \\cdot (NetRadiation + WG) + c_{p}
-    (SaturationVapourPressure - ActualVapourPressure) / AerodynamicResistance
-    \\cdot C}{\\Delta + \\gamma (1 + SurfaceResistnaceCorr /
-    AerodynamicResistance) \\cdot C} \\cdot \frac{1}{\\lambda}`
 
-    :math:`C = 1 + 4 \\cdot Emissivity \\cdot Sigma \\cdot (273.15 + TKor)^3`
+    :math:`\\frac
+    {SaturationVapourPressureSlope \\cdot (NetRadiation + WG) +
+    Seconds \\cdot C \\cdot DensitiyAir \\cdot CPLuft \\cdot
+    (SaturationVapourPressure - ActualVapourPressure) / AerodynamicResistance}
+    {L \\cdot (SaturationVapourPressureSlope +
+    PsychrometricConstant \\cdot
+    C \\cdot (1 + SurfaceResistance/AerodynamicResistance))}`
+
+    :math:`b' = 1 + 4 \\cdot Emissivity \\cdot Sigma \\cdot (273.15 + TKor)^3`
+
+    :math:`C = 1 +
+    \\frac{b' \\cdot AerodynamicResistance}{DensitiyAir \\cdot CPLuft}`
+
+    Correction factor `C` takes the difference between measured temperature
+    and actual surface temperature into account.
 
     Example:
 
-    The following example shows how the function |Calc_PM_Single_V1| is used
-    by the function |Calc_EvB_V1|. In this case |Calc_PM_Single_V1| is used
-    to calculate the evapotranspiration according to Penman-Monteith over
-    land surfaces without snow.
+        We build the following example on the first example of the
+        documentation on method |Return_Penman_V1|.  The total available
+        energy (|NetRadiation| plus |WG|) and the vapour saturation pressure
+        deficit (|SaturationVapourPressure| minus |ActualVapourPressure|
+        are identical.  To make the results roughly comparable, we use
+        resistances suitable for water surfaces through setting
+        |AerodynamicResistance| to zero and |SurfaceResistance| to
+        a reasonalbe precalculated value of 106 s/m:
 
         >>> from hydpy.lland import *
+        >>> simulationstep('1d')
         >>> parameterstep()
-        >>> nhru(6)
-        >>> lnk(ACKER, ACKER, ACKER, LAUBW, LAUBW, LAUBW)
-        >>> fluxes.tkor(0.0, 1.0, 10.0, 0.0, 1.0, 10.0)
-        >>> states.waes = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-        >>> emissivity(0.95)
-        >>> derived.seconds = 24*60*60
+        >>> nhru(7)
+        >>> emissivity(0.96)
+        >>> derived.seconds.update()
+        >>> fluxes.netradiation = 1.0, 4.5, 8.0, 1.0, 1.0, 1.0, 8.0
+        >>> fluxes.wg = -1.0
+        >>> fluxes.saturationvapourpressure = 1.2
+        >>> fluxes.saturationvapourpressureslope = 0.08
+        >>> fluxes.actualvapourpressure = 1.2, 1.2, 1.2, 1.2, 0.6, 0.0, 0.0
+        >>> fluxes.densityair = 1.24
+        >>> fluxes.psychrometricconstant = 0.07
+        >>> fluxes.surfaceresistance = 0.0
+        >>> fluxes.aerodynamicresistance = 106.0
+        >>> fluxes.tkor = 10.0
 
-        .. testsetup::
+        For the first three hydrological response units with energy forcing
+        only, there is a relatively small deviation to the results of method
+        |Return_Penman_v1| due to the correction factor `C`, which is only
+        implemented by method |Return_PenmanMonteith_v1|.  For response
+        units four to six with dynamic forcing only, the results of method
+        |Return_PenmanMonteith_v1| are more than twice as large as those
+        of method |Return_Penman_v1|:
 
-            >>> inputs.relativehumidity(75.0)
-            >>> inputs.atmosphericpressure(101.3)
-            >>> derived.moy = 0
-            >>> cropheight.wasser_jan = 0.05
-            >>> cropheight.acker_jan = 0.05
-            >>> cropheight.laubw_jan = 2.0
-            >>> fluxes.windspeed10m(3.0)
-            >>> control.pwp(30.0)
-            >>> control.wmax(210.0)
-            >>> states.bowa(150.0)
-            >>> surfaceresistance.acker_jan = 40.0
-            >>> surfaceresistance.wasser_jan = 0.0
-            >>> surfaceresistance.laubw_jan = 80.0
+        >>> from hydpy import print_values
+        >>> for hru in range(7):
+        ...     deficit = (fluxes.saturationvapourpressure[hru] -
+        ...                fluxes.actualvapourpressure[hru])
+        ...     print_values([fluxes.netradiation[hru]+fluxes.wg[hru],
+        ...                   deficit,
+        ...                   model.return_penmanmonteith_v1(hru)])
+        0.0, 0.0, 0.0
+        3.5, 0.0, 0.633733
+        7.0, 0.0, 1.267465
+        0.0, 0.0, 0.0
+        0.0, 0.6, 1.959347
+        0.0, 1.2, 3.918693
+        7.0, 1.2, 5.186158
 
-        >>> fluxes.saturationvapourpressure(0.6, 0.7, 1.2, 0.6, 0.7, 1.2)
-        >>> fluxes.saturationvapourpressureslope(
-        ...     0.04, 0.05, 0.08, 0.04, 0.05, 0.08)
-        >>> fluxes.actualvapourpressure(
-        ...     0.46, 0.49, 0.92, 0.46, 0.49, 0.92)
-        >>> fluxes.psychrometricconstant(0.07)
-        >>> fluxes.densityair(
-        ...     1.29, 1.29, 1.24, 1.29, 1.29, 1.24)
-        >>> fluxes.aerodynamicresistance(
-        ...     120.4, 120.4, 120.4, 31.9, 31.9, 31.9)
-        >>> fluxes.surfaceresistance(
-        ...     64.9, 64.9, 64.9, 109.4, 109.4, 109.4)
-        >>> fluxes.densityair(
-        ...     1.29, 1.28, 1.24, 1.29, 1.28, 1.24)
+        Next, we repeat the above calculations using resistances relevant
+        for vegetated surfaces (note that this also changes the results
+        of the first three response units due to correction factor `C`
+        depending on |AerodynamicResistance|):
 
-        >>> fluxes.wg(0.04, 0.02, 0.01, 0.04, 0.02, 0.01)
-        >>> fluxes.netradiation(1.0, 2.0, 3.0, 1.0, 2.0, 3.0)
-        >>> fluxes.evi(0.25, 0.46, 0.5, 0.25, 0.46, 0.5)
-        >>> fluxes.evpo(0.45, 0.76, 1.10, 0.45, 0.76, 1.10)
+        >>> fluxes.surfaceresistance = 80.0
+        >>> fluxes.aerodynamicresistance = 40.0
+        >>> for hru in range(7):
+        ...     deficit = (fluxes.saturationvapourpressure[hru] -
+        ...                fluxes.actualvapourpressure[hru])
+        ...     print_values([fluxes.netradiation[hru]+fluxes.wg[hru],
+        ...                   deficit,
+        ...                   model.return_penmanmonteith_v1(hru)])
+        0.0, 0.0, 0.0
+        3.5, 0.0, 0.3517
+        7.0, 0.0, 0.703399
+        0.0, 0.0, 0.0
+        0.0, 0.6, 2.35049
+        0.0, 1.2, 4.70098
+        7.0, 1.2, 5.404379
 
-        >>> model.calc_evb_v2()
-        >>> fluxes.evb
-        evb(0.211625, 0.296876, 0.565181, 0.275607, 0.370984, 0.672898)
+        The above results are sensitive to the relation of |SurfaceResistance|
+        and |AerodynamicResistance|.  The following example demonstrates this
+        sensitivity through varying |SurfaceResistance| over a wide range:
 
-        hourly timestep:
+        >>> fluxes.netradiation = 8.0
+        >>> fluxes.actualvapourpressure = 0.0
+        >>> fluxes.surfaceresistance = (
+        ...     0.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0)
+        >>> for hru in range(7):
+        ...     print_values([fluxes.surfaceresistance[hru],
+        ...                   model.return_penmanmonteith_v1(hru)])
+        0.0, 10.84584
+        20.0, 8.664782
+        50.0, 6.656796
+        100.0, 4.802069
+        200.0, 3.083698
+        500.0, 1.487181
+        1000.0, 0.798324
 
-        >>> derived.seconds = 60*60
-        >>> fluxes.wg(0.0017, 0.0008, 0.0004, 0.0017, 0.0008, 0.0004)
-        >>> fluxes.netradiation(0.1, 0.2, 0.3, 0.4, 0.5, 0.6)
-        >>> fluxes.evi(0.025, 0.046, 0.05, 0.025, 0.046, 0.05)
-        >>> fluxes.evpo(0.045, 0.076, 0.11, 0.045, 0.076, 0.110)
+        Now we change the simulation time step from one day to one hour
+        to demonstrate that we can reproduce the results of the first
+        example, which only required to adjust |NetRadiation| and |WG|:
 
-        >>> model.calc_evb_v2()
-        >>> fluxes.evb
-        evb(0.011014, 0.016982, 0.036529, 0.018222, 0.02392, 0.047643)
+        >>> simulationstep('1h')
+        >>> derived.seconds.update()
+        >>> fixed.sigma.restore()
+        >>> fluxes.netradiation = 1.0, 4.5, 8.0, 1.0, 1.0, 1.0, 8.0
+        >>> fluxes.netradiation /= 24
+        >>> fluxes.wg = -1.0/24
+        >>> fluxes.actualvapourpressure = 1.2, 1.2, 1.2, 1.2, 0.6, 0.0, 0.0
+        >>> fluxes.surfaceresistance = 0.0
+        >>> fluxes.aerodynamicresistance = 106.0
+        >>> for hru in range(7):
+        ...     deficit = (fluxes.saturationvapourpressure[hru] -
+        ...                fluxes.actualvapourpressure[hru])
+        ...     print_values([24*(fluxes.netradiation[hru]+fluxes.wg[hru]),
+        ...                   deficit,
+        ...                   24*model.return_penmanmonteith_v1(hru)])
+        0.0, 0.0, 0.0
+        3.5, 0.0, 0.633733
+        7.0, 0.0, 1.267465
+        0.0, 0.0, 0.0
+        0.0, 0.6, 1.959347
+        0.0, 1.2, 3.918693
+        7.0, 1.2, 5.186158
         """
     CONTROLPARAMETERS = (
-        lland_control.NHRU,
-        lland_control.Lnk,
         lland_control.Emissivity,
     )
     DERIVEDPARAMETERS = (
         lland_derived.Seconds,
     )
+    FIXEDPARAMETERS = (
+        lland_fixed.Sigma,
+        lland_fixed.L,
+        lland_fixed.CPLuft,
+    )
     REQUIREDSEQUENCES = (
+        lland_fluxes.NetRadiation,
+        lland_fluxes.WG,
         lland_fluxes.TKor,
-        lland_fluxes.SaturationVapourPressure,
         lland_fluxes.SaturationVapourPressureSlope,
+        lland_fluxes.SaturationVapourPressure,
         lland_fluxes.ActualVapourPressure,
         lland_fluxes.PsychrometricConstant,
         lland_fluxes.DensityAir,
         lland_fluxes.AerodynamicResistance,
         lland_fluxes.SurfaceResistance,
-        lland_fluxes.WG,
-        lland_fluxes.NetRadiation,
     )
 
     @staticmethod
-    def __call__(model: 'lland.Model', k: int, surfaceresistance: float) \
-            -> float:
+    def __call__(model: 'lland.Model', k: int) -> float:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        # TODO Konstante: Stefan-Boltzmann-Konstante
-        # TODO Konstante: spezifische Wärmekonstante Luft(0.001005MJ/kg),
-        #  Latente Verdunstungswärme (2.465 MJ/kg)
-        # C: Korrekturfaktor für Abweichungen von gemessener Temperatur und
-        # Oberflächentemperatur
-        d_c = (
-            1.+((4.*con.emissivity*5.67e-8*(273.15 + flu.tkor[k])**3) *
-                flu.aerodynamicresistance[k])/(flu.densityair[k]*1005.))
+        d_b = 4.*con.emissivity*fix.sigma/der.seconds*(273.15+flu.tkor[k])**3
+        d_c = 1.+d_b*flu.aerodynamicresistance[k]/flu.densityair[k]/fix.cpluft
         return (
             (flu.saturationvapourpressureslope[k] *
-             (flu.netradiation[k]+flu.wg[k])+flu.densityair[k] *
-             0.001005 *
-             (flu.saturationvapourpressure[k] -
-              flu.actualvapourpressure[k]) *
-             d_c*der.seconds/(flu.aerodynamicresistance[k])) /
+             (flu.netradiation[k]+flu.wg[k]) +
+             der.seconds*flu.densityair[k]*fix.cpluft *
+             (flu.saturationvapourpressure[k]-flu.actualvapourpressure[k]) *
+             d_c/flu.aerodynamicresistance[k]) /
             (flu.saturationvapourpressureslope[k] +
              flu.psychrometricconstant *
-             (1.+surfaceresistance /
-              flu.aerodynamicresistance[k])*d_c)/2.465000)
+             (1.+flu.surfaceresistance[k]/flu.aerodynamicresistance[k])*d_c) /
+            fix.l)
 
 
-class Calc_Penman_V1(modeltools.Method):
-    """Calculates the evapotranspiration from water surfaces according to
-    Penman
+class Return_Penman_V1(modeltools.Method):
+    """Calculate the evaporation from water surfaces according to
+    Penman and return it.
 
-    Basic equations:
-      :math:`f(v) = 0.13 + 0.94 \\cdot WindSpeed2m`
+    Basic equation:
+      :math:`\\frac{SaturationVapourPressureSlope \\cdot \\frac{NetRadiation}{L}
+      + \\PsychrometricConstant \\cdot (1.3 + 0.94 \\cdot WindSpeed2m) \\cdot
+      (SaturationVapourPressure-ActualVapourPressure)}
+      {SaturationVapourPressureSlope + PsychrometricConstant}`
 
-      :math:`EvPoWater = \\frac{\\Delta \\frac{NetRadiation}{L}+\\gamma
-      \\cdot f(v) \\cdot (SaturationVapourPressure-ActualVapourPressure)}
-      {\\Delta + \\gamma}`
+    Examples:
 
-    Example:
+        We initialise seven hydrological response units.  In reponse units
+        one to three, evaporation is due to radiative forcing only.  In
+        response units four to six, evaporation is due to aerodynamic forcing
+        only.  Response unit seven shows the combined effect of both forces:
 
         >>> from hydpy.lland import *
         >>> parameterstep()
-        >>> nhru(2)
+        >>> nhru(7)
+        >>> derived.seconds(24*60*60)
+        >>> fluxes.netradiation = 0.0, 3.5, 7.0, 0.0, 0.0, 0.0, 7.0
+        >>> fluxes.saturationvapourpressure = 1.2
+        >>> fluxes.saturationvapourpressureslope = 0.08
+        >>> fluxes.actualvapourpressure = 1.2, 1.2, 1.2, 1.2, 0.6, 0.0, 0.0
+        >>> fluxes.psychrometricconstant = 0.07
+        >>> fluxes.windspeed2m = 2.0
+        >>> from hydpy import print_values
+        >>> for hru in range(7):
+        ...     deficit = (fluxes.saturationvapourpressure[hru] -
+        ...                fluxes.actualvapourpressure[hru])
+        ...     print_values([fluxes.netradiation[hru],
+        ...                   deficit,
+        ...                   model.return_penman_v1(hru)])
+        0.0, 0.0, 0.0
+        3.5, 0.0, 0.758068
+        7.0, 0.0, 1.516136
+        0.0, 0.0, 0.0
+        0.0, 0.6, 0.8904
+        0.0, 1.2, 1.7808
+        7.0, 1.2, 3.296936
         
-        Test in Tagesschrittweite:
-        
-        >>> derived.seconds = 24*60*60
-        >>> fluxes.saturationvapourpressure(1.227963)
-        >>> fluxes.saturationvapourpressureslope(0.082283)
-        >>> fluxes.actualvapourpressure(0.736778)
-        >>> fluxes.netradiation(7.296675, 10.0)
-        >>> fluxes.psychrometricconstant(0.067364)
-        >>> fluxes.windspeed2m(2.243258)
-        >>> model.calc_evpo_v3()
-        >>> fluxes.evpo
-        evpo(2.383011, 2.986657)
-        
-        Test in Stundenschrittweite:
-        >>> derived.seconds = 60*60
-        >>> fluxes.netradiation(0.2, 0.4)
-        >>> model.calc_evpo_v3()
-        >>> fluxes.evpo
-        evpo(0.076063, 0.120722)
+        The above results apply for a daily simulation time step.  The
+        following example demonstrates that, after adjusting the total
+        amount of energy available via sequence |NetRadiation|, we get
+        equivalent results for hourly time steps:
+
+        >>> derived.seconds(60*60)
+        >>> fluxes.netradiation /= 24
+        >>> for hru in range(7):
+        ...     deficit = (fluxes.saturationvapourpressure[hru] -
+        ...                fluxes.actualvapourpressure[hru])
+        ...     print_values([24*fluxes.netradiation[hru],
+        ...                   deficit,
+        ...                   24*model.return_penman_v1(hru)])
+        0.0, 0.0, 0.0
+        3.5, 0.0, 0.758068
+        7.0, 0.0, 1.516136
+        0.0, 0.0, 0.0
+        0.0, 0.6, 0.8904
+        0.0, 1.2, 1.7808
+        7.0, 1.2, 3.296936
         """
 
     CONTROLPARAMETERS = (
@@ -4582,6 +4685,9 @@ class Calc_Penman_V1(modeltools.Method):
     )
     DERIVEDPARAMETERS = (
         lland_derived.Seconds,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.L,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.SaturationVapourPressureSlope,
@@ -4593,117 +4699,50 @@ class Calc_Penman_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: 'lland.Model', evpo: Vector) -> None:
-        con = model.parameters.control.fastaccess
+    def __call__(model: 'lland.Model', k: int) -> float:
         der = model.parameters.derived.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        for k in range(con.nhru):
-            evpo[k] = (
-                (flu.saturationvapourpressureslope[k] *
-                 flu.netradiation[k]*1e6/der.seconds/28.5 +
-                 flu.psychrometricconstant *
-                 (0.13+0.094*flu.windspeed2m) *
-                 10 *
-                 (flu.saturationvapourpressure[k] -
-                  flu.actualvapourpressure[k])) /
-                (flu.saturationvapourpressureslope[k] +
-                 flu.psychrometricconstant)) / (24*60*60)*der.seconds
-        # ToDo: f(v) in extra Methode?
-
-
-class Calc_EvPo_V2(modeltools.Method):
-    # todo: Für Wasserflächen wurde die Formel in LARSIM angepasst. Aber wie?
-    """Calculate evpotranspiration according to Penman-Monteith.
-
-    Example:
-
-        >>> from hydpy.lland import *
-        >>> parameterstep()
-        >>> nhru(9)
-        >>> lnk(ACKER, ACKER, ACKER, LAUBW, LAUBW, LAUBW, WASSER, WASSER,
-        ... WASSER)
-        >>> fluxes.tkor(0.0, 1.0, 10.0, 0.0, 1.0, 10.0, 0.0, 1.0, 10.0)
-        >>> emissivity(0.95)
-        >>> derived.seconds = 24*60*60
-
-        >>> fluxes.saturationvapourpressure(
-        ...     0.6, 0.7, 1.2, 0.6, 0.7, 1.2, 0.6, 0.7, 1.2)
-        >>> fluxes.saturationvapourpressureslope(
-        ...     0.04, 0.05, 0.08, 0.04, 0.05, 0.08, 0.04, 0.05, 0.08)
-        >>> fluxes.actualvapourpressure(
-        ...     0.46, 0.49, 0.92, 0.46, 0.49, 0.92, 0.46, 0.49, 0.92)
-        >>> fluxes.psychrometricconstant(0.07)
-        >>> fluxes.densityair(
-        ...     1.29, 1.29, 1.24, 1.29, 1.29, 1.24, 1.29, 1.29, 1.24)
-        >>> fluxes.aerodynamicresistance(
-        ...     120.4, 120.4, 120.4, 31.9, 31.9, 31.9, 120.4, 120.4, 120.4)
-        >>> fluxes.surfaceresistance(
-        ...     64.9, 64.9, 64.9, 109.4, 109.4, 109.4, 0.0, 0.0, 0.0)
-        >>> fluxes.densityair(
-        ...     1.29, 1.28, 1.24, 1.29, 1.28, 1.24, 1.29, 1.28, 1.24)
-
-        >>> fluxes.wg(0.04, 0.02, 0.01, 0.04, 0.02, 0.01, 0.04, 0.02, 0.01)
-        >>> fluxes.netradiation(1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0)
-        >>> model.calc_evpo_v2()
-        >>> fluxes.evpo
-        evpo(0.658719, 1.021527, 1.350634, 2.023197, 2.901006, 3.332555,
-             0.658719, 1.021527, 1.350634)
-    """
-    SUBMETHODS = (
-        Calc_PM_Single_V1,
-    )
-    CONTROLPARAMETERS = (
-        lland_control.Emissivity,
-        lland_control.NHRU,
-    )
-    DERIVEDPARAMETERS = (
-        lland_derived.Seconds,
-    )
-    REQUIREDSEQUENCES = (
-        lland_fluxes.NetRadiation,
-        lland_fluxes.SaturationVapourPressureSlope,
-        lland_fluxes.WG,
-        lland_fluxes.DensityAir,
-        lland_fluxes.ActualVapourPressure,
-        lland_fluxes.SaturationVapourPressure,
-        lland_fluxes.AerodynamicResistance,
-        lland_fluxes.TKor,
-        lland_fluxes.PsychrometricConstant,
-    )
-    # todo: Muss angepasst werden (cropheight=0)??
-    RESULTSEQUENCES = (
-        lland_fluxes.EvPo,
-    )
-
-    @staticmethod
-    def __call__(model: 'lland.Model') -> None:
-        con = model.parameters.control.fastaccess
-        flu = model.sequences.fluxes.fastaccess
-        for k in range(con.nhru):
-            flu.evpo[k] = model.calc_pm_single_v1(k, 0.)
+        return (
+            (flu.saturationvapourpressureslope[k]*flu.netradiation[k]/fix.l +
+             flu.psychrometricconstant*(1.3+.94*flu.windspeed2m) *
+             (flu.saturationvapourpressure[k]-flu.actualvapourpressure[k]) /
+             (24*60*60)*der.seconds) /
+            (flu.saturationvapourpressureslope[k]+flu.psychrometricconstant))
 
 
 class Calc_EvPo_V3(modeltools.Method):
-    """Calculate evpotranspiration according to Penman.
+    """Calculate the potential evaporation according to Penman and return it.
+
+    At the moment, method |Calc_EvPo_V3| just applies method
+    |Return_PenmanEvaporation_V1| on all hydrological response units,
+    irregardless if they represent water areas or not.  This might
+    change in the future.
 
     Example:
 
+        For the first seven hydrological response units, the following
+        results agree with the results discussed in the documentation
+        on method |Return_PenmanEvaporation_V1|.  The eights response
+        unit demonstrates that method |Calc_EvPo_V3| trims negative
+        evaporation to zero and thus generally prevents condensation:
+
         >>> from hydpy.lland import *
         >>> parameterstep()
-        >>> nhru(2)
-        >>> derived.seconds = 24*60*60
-        >>> fluxes.saturationvapourpressure(1.227963)
-        >>> fluxes.saturationvapourpressureslope(0.082283)
-        >>> fluxes.actualvapourpressure(0.736778)
-        >>> fluxes.netradiation(7.296675, 10.0)
-        >>> fluxes.psychrometricconstant(0.067364)
-        >>> fluxes.windspeed2m(2.243258)
+        >>> nhru(8)
+        >>> derived.seconds(24*60*60)
+        >>> fluxes.netradiation = 0.0, 3.5, 7.0, 0.0, 0.0, 0.0, 7.0, -1.0
+        >>> fluxes.saturationvapourpressure = 1.2
+        >>> fluxes.saturationvapourpressureslope = 0.08
+        >>> fluxes.actualvapourpressure = 1.2, 1.2, 1.2, 1.2, 0.6, 0.0, 0.0, 1.2
+        >>> fluxes.psychrometricconstant = 0.07
+        >>> fluxes.windspeed2m = 2.0
         >>> model.calc_evpo_v3()
         >>> fluxes.evpo
-        evpo(2.383011, 2.986657)
+        evpo(0.0, 0.758068, 1.516136, 0.0, 0.8904, 1.7808, 3.296936, 0.0)
     """
     SUBMETHODS = (
-        Calc_Penman_V1,
+        Return_Penman_V1,
     )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -4725,55 +4764,11 @@ class Calc_EvPo_V3(modeltools.Method):
 
     @staticmethod
     def __call__(model: 'lland.Model') -> None:
+        con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        model.calc_penman_v1(flu.evpo)
-
-
-class Calc_EvPoWater_V1(modeltools.Method):
-    """Calculates the evapotranspiration from water surfaces according to
-    Penman.
-
-    Example:
-
-        >>> from hydpy.lland import *
-        >>> parameterstep()
-        >>> nhru(2)
-        >>> derived.seconds = 24*60*60
-        >>> fluxes.saturationvapourpressure(1.227963)
-        >>> fluxes.saturationvapourpressureslope(0.082283)
-        >>> fluxes.actualvapourpressure(0.736778)
-        >>> fluxes.netradiation(7.296675)
-        >>> fluxes.psychrometricconstant(0.067364)
-        >>> fluxes.windspeed2m(2.243258)
-        >>> model.calc_evpowater_v1()
-        >>> fluxes.evpowater
-        evpowater(2.383011, 2.383011)
-        """
-    SUBMETHODS = (
-        Calc_Penman_V1,
-    )
-    CONTROLPARAMETERS = (
-        lland_control.NHRU,
-    )
-    DERIVEDPARAMETERS = (
-        lland_derived.Seconds,
-    )
-    REQUIREDSEQUENCES = (
-        lland_fluxes.SaturationVapourPressureSlope,
-        lland_fluxes.NetRadiation,
-        lland_fluxes.PsychrometricConstant,
-        lland_fluxes.WindSpeed2m,
-        lland_fluxes.SaturationVapourPressure,
-        lland_fluxes.ActualVapourPressure,
-    )
-    RESULTSEQUENCES = (
-        lland_fluxes.EvPoWater,
-    )
-
-    @staticmethod
-    def __call__(model: 'lland.Model') -> None:
-        flu = model.sequences.fluxes.fastaccess
-        model.calc_penman_v1(flu.evpowater)
+        for k in range(con.nhru):
+            x = 1
+            flu.evpo[k] = max(model.return_penman_v1(k), 0.)
 
 
 class Calc_EvPoSnow_WAeS_WATS_V1(modeltools.Method):
@@ -4834,7 +4829,7 @@ class Calc_EvPoSnow_WAeS_WATS_V1(modeltools.Method):
 
 
 class Calc_EvI_Inzp_V1(modeltools.Method):
-    """Calculate interception lland evaporation and update the interception
+    """Calculate interception evaporation and update the interception
     storage accordingly.
 
     Basic equation:
@@ -4847,36 +4842,41 @@ class Calc_EvI_Inzp_V1(modeltools.Method):
 
     Examples:
 
-        Initialize five HRUs with different combinations of land usage
-        and initial interception storage and apply a value of potential
-        evaporation of 3 mm on each one:
+        For all "land response units" like arable land (|ACKER|), interception
+        evaporation (|EvI|) is identical with potential evapotranspiration
+        (|EvPo|) as long as it is met by available intercepted water (|Inzp|):
 
         >>> from hydpy.lland import *
         >>> parameterstep('1d')
-        >>> nhru(5)
-        >>> lnk(FLUSS, SEE, ACKER, ACKER, ACKER)
-        >>> states.inzp = 2.0, 2.0, 0.0, 2.0, 4.0
-        >>> fluxes.evpowater = 3.0
+        >>> nhru(3)
+        >>> lnk(ACKER)
+        >>> states.inzp = 0.0, 2.0, 4.0
+        >>> fluxes.evpo = 3.0
         >>> model.calc_evi_inzp_v1()
         >>> states.inzp
-        inzp(0.0, 0.0, 0.0, 0.0, 1.0)
+        inzp(0.0, 0.0, 1.0)
         >>> fluxes.evi
-        evi(0.0, 0.0, 0.0, 2.0, 3.0)
+        evi(0.0, 2.0, 3.0)
 
-        For arable land (|ACKER|) and most other land types, interception
-        evaporation (|EvI|) is identical with potential evapotranspiration
-        (|EvPo|), as long as it is met by available intercepted water
-        ([Inzp|).  Only water areas (|FLUSS| and |SEE|),  |EvI| is
-        generally equal to |EvPo| (but this might be corrected by a method
-        called after |Calc_EvI_Inzp_V1| has been applied) and [Inzp| is
-        set to zero.
+        For water areas (|WASSER|, |FLUSS| and |SEE|), |EvI| is generally
+        equal to |EvPo| (but this might be corrected by a method called
+        after |Calc_EvI_Inzp_V1| has been applied) and |Inzp| is set to zero:
+
+        >>> lnk(WASSER, FLUSS, SEE)
+        >>> states.inzp = 2.0
+        >>> fluxes.evpo = 3.0
+        >>> model.calc_evi_inzp_v1()
+        >>> states.inzp
+        inzp(0.0, 0.0, 0.0)
+        >>> fluxes.evi
+        evi(3.0, 3.0, 3.0)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
         lland_control.Lnk,
     )
     REQUIREDSEQUENCES = (
-        lland_fluxes.EvPoWater,
+        lland_fluxes.EvPo,
     )
     UPDATEDSEQUENCES = (
         lland_states.Inzp,
@@ -4892,77 +4892,83 @@ class Calc_EvI_Inzp_V1(modeltools.Method):
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
             if con.lnk[k] in (WASSER, FLUSS, SEE):
-                flu.evi[k] = 0.
+                flu.evi[k] = flu.evpo[k]
                 sta.inzp[k] = 0.
             else:
-                flu.evi[k] = min(flu.evpowater[k], sta.inzp[k])
+                flu.evi[k] = min(flu.evpo[k], sta.inzp[k])
                 sta.inzp[k] -= flu.evi[k]
-        # todo: Verdunstung aus Interzeptionsspeicher bei Schnee?
 
 
-class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
-    """Calculate the actual evapotranspiration from soil.
+class Calc_EvB_V2(modeltools.Method):
+    """Calculate the actual evapotranspiration from the soil.
+
+    :math:`EvB = \\frac{EvPo - EvI}{EvPo}  \\cdot EvB_{Penman-Monteith}`
 
     Example:
 
-       >>> from hydpy.lland import *
+        For sealed surfaces, water areas and snow-covered hydrological
+        response units, there is no soil evaporation:
+
+        >>> from hydpy.lland import *
+        >>> simulationstep('1d')
         >>> parameterstep()
-        >>> nhru(9)
-        >>> lnk(ACKER, ACKER, ACKER, LAUBW, LAUBW, LAUBW, WASSER, WASSER,
-        ... WASSER)
-        >>> fluxes.tkor(0.0, 1.0, 10.0, 0.0, 1.0, 10.0, 0.0, 1.0, 10.0)
-        >>> states.waes = 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0
-        >>> emissivity(0.95)
-        >>> derived.seconds = 24*60*60
-
-        >>> fluxes.saturationvapourpressure(
-        ...     0.6, 0.7, 1.2, 0.6, 0.7, 1.2, 0.6, 0.7, 1.2)
-        >>> fluxes.saturationvapourpressureslope(
-        ...     0.04, 0.05, 0.08, 0.04, 0.05, 0.08, 0.04, 0.05, 0.08)
-        >>> fluxes.actualvapourpressure(
-        ...     0.46, 0.49, 0.92, 0.46, 0.49, 0.92, 0.46, 0.49, 0.92)
-        >>> fluxes.psychrometricconstant(0.07)
-        >>> fluxes.densityair(
-        ...     1.29, 1.29, 1.24, 1.29, 1.29, 1.24, 1.29, 1.29, 1.24)
-        >>> fluxes.aerodynamicresistance(
-        ...     120.4, 120.4, 120.4, 31.9, 31.9, 31.9, 120.4, 120.4, 120.4)
-        >>> fluxes.surfaceresistance(
-        ...     64.9, 64.9, 64.9, 109.4, 109.4, 109.4, 0.0, 0.0, 0.0)
-        >>> fluxes.densityair(
-        ...     1.29, 1.28, 1.24, 1.29, 1.28, 1.24, 1.29, 1.28, 1.24)
-
-        >>> fluxes.wg(0.04, 0.02, 0.01, 0.04, 0.02, 0.01, 0.04, 0.02, 0.01)
-        >>> fluxes.netradiation(1.0, 2.0, 3.0, 1.0, 2.0, 3.0, 1.0, 2.0, 3.0)
-        >>> fluxes.evi(0.25, 0.46, 0.5, 0.25, 0.46, 0.5, 0.0, 0.0, 0.0)
-        >>> fluxes.evpo(0.45, 0.76, 1.10, 0.45, 0.76, 1.10, 0.45, 0.76, 1.10)
-        >>> fluxes.evpowater(
-        ...     0.45, 0.76, 1.10, 0.45, 0.76, 1.10, 0.45, 0.76,1.10)
-
+        >>> nhru(6)
+        >>> lnk(VERS, WASSER, FLUSS, SEE, NADELW, NADELW)
+        >>> states.waes = 0.0, 0.0, 0.0, 0.0, 0.1, 10.0
         >>> model.calc_evb_v2()
         >>> fluxes.evb
-        evb(0.0, 0.296876, 0.565181, 0.0, 0.370984, 0.672898, 0.45, 0.76, 1.1)
+        evb(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+        For all other cases, method |Calc_EvB_V2| first applies method
+        |Return_PenmanMonteith_V1| (of which's documentation we take
+        most of the following test configuration) and adjusts the returned
+        soil evaporation to the (prioritised) interception evaporation
+        in accordance with the base equation defined above.  Additionally,
+        the first and the last response unit show that method |Calc_EvPo_V3|
+        sets |EvB| to zero when |EvPo| is zero or when the original soil
+        evapotranspiration value calculated by |Return_PenmanMonteith_V1|
+        is negative:
+
+        >>> lnk(NADELW)
+        >>> states.waes = 0.0
+        >>> emissivity(0.96)
+        >>> derived.seconds.update()
+        >>> fluxes.netradiation = 8.0, 8.0, 8.0, 8.0, 8.0, -30.0
+        >>> fluxes.wg = -1.0
+        >>> fluxes.saturationvapourpressure = 1.2
+        >>> fluxes.saturationvapourpressureslope = 0.08
+        >>> fluxes.actualvapourpressure = 0.0
+        >>> fluxes.densityair = 1.24
+        >>> fluxes.psychrometricconstant = 0.07
+        >>> fluxes.surfaceresistance = 0.0
+        >>> fluxes.aerodynamicresistance = 106.0
+        >>> fluxes.tkor = 10.0
+        >>> fluxes.evpo = 0.0, 6.0, 6.0, 6.0, 6.0, 6.0
+        >>> fluxes.evi = 0.0, 0.0, 2.0, 4.0, 6.0, 3.0
+        >>> model.calc_evb_v2()
+        >>> fluxes.evb
+        evb(0.0, 5.186158, 3.457439, 1.728719, 0.0, 0.0)
     """
     SUBMETHODS = (
-        Calc_PM_Single_V1,
+        Return_PenmanMonteith_V1,
     )
     CONTROLPARAMETERS = (
-        lland_control.Emissivity,
         lland_control.NHRU,
+        lland_control.Lnk,
+        lland_control.Emissivity,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.NetRadiation,
-        lland_fluxes.SaturationVapourPressureSlope,
         lland_fluxes.WG,
-        lland_fluxes.DensityAir,
-        lland_fluxes.ActualVapourPressure,
+        lland_fluxes.TKor,
+        lland_fluxes.SaturationVapourPressureSlope,
         lland_fluxes.SaturationVapourPressure,
+        lland_fluxes.ActualVapourPressure,
+        lland_fluxes.PsychrometricConstant,
+        lland_fluxes.DensityAir,
         lland_fluxes.AerodynamicResistance,
         lland_fluxes.SurfaceResistance,
-        lland_fluxes.TKor,
-        lland_fluxes.PsychrometricConstant,
-        lland_fluxes.EvPoWater,
         lland_fluxes.EvPo,
-        lland_fluxes.EvPoWater,
         lland_fluxes.EvI,
         lland_states.WAeS,
     )
@@ -4976,14 +4982,15 @@ class Calc_EvB_V2(modeltools.Method):  # todo für Interzeptionsspeicher
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            if con.lnk[k] in (VERS, WASSER, FLUSS, SEE):
-                flu.evb[k] = flu.evpowater[k]
-            elif sta.waes[k] > 0.:
-                flu.evb[k] = 0
+            if ((con.lnk[k] in (VERS, WASSER, FLUSS, SEE)) or
+                    (sta.waes[k] > 0.) or (flu.evpo[k] <= 0.)):
+                flu.evb[k] = 0.
             else:
-                d_ev_boden = model.calc_pm_single_v1(
-                    k, flu.surfaceresistance[k])
-                flu.evb[k] = (flu.evpo[k]-flu.evi[k])/flu.evpo[k]*d_ev_boden
+                d_evb = model.return_penmanmonteith_v1(k)
+                if d_evb < 0.:
+                    flu.evb[k] = 0.
+                else:
+                    flu.evb[k] = (flu.evpo[k]-flu.evi[k])/flu.evpo[k]*d_evb
 
 
 class Calc_QKap_V1(modeltools.Method):
@@ -5537,7 +5544,7 @@ class Calc_BoWa_V1(modeltools.Method):
         The capillary rise is reduced for all cases where |BoWa| is bigger
         than |FK|
 
-        >>> fluxes.qkap
+        >>> fluxes.qkap   # ToDo
         qkap(0.5, 0.5, 0.5, 0.0, 0.0, 0.2, 0.3)
 
         For the seventh HRU, the original total loss terms would result in a
@@ -5604,25 +5611,16 @@ class Calc_BoWa_V1(modeltools.Method):
             if con.lnk[k] in (VERS, WASSER, FLUSS, SEE):
                 sta.bowa[k] = 0.
             else:
-                # TODO: Mit der neuen Variante ist Kondensation möglich
-                if flu.evb[k] > 0.:
-                    d_evap = flu.evb[k]
-                    d_cond = 0.
-                else:
-                    d_evap = 0.
-                    d_cond = flu.evb[k]
-                d_bvl = (
-                    d_evap + flu.qbb[k] + flu.qib1[k] + flu.qib2[k] +
-                    flu.qdb[k])
-                d_mvl = sta.bowa[k] + flu.wada[k] + flu.qkap[k] + d_cond
+                d_bvl = (flu.evb[k] +
+                         flu.qbb[k] + flu.qib1[k] + flu.qib2[k] + flu.qdb[k])
+                d_mvl = sta.bowa[k] + flu.wada[k] + flu.qkap[k]
                 if d_bvl > d_mvl:
                     if con.corrqbbflag[k] and flu.qbb[k] > 0.:
                         d_delta = min(d_bvl - d_mvl, flu.qbb[k])
                         flu.qbb[k] -= d_delta
-                        d_bvl = (
-                            d_evap + flu.qbb[k] + flu.qib1[k] +
-                            flu.qib2[k] + flu.qdb[k])
-                        d_mvl = sta.bowa[k] + flu.wada[k] + flu.qkap[k] + d_cond
+                        d_bvl = (flu.evb[k] + flu.qbb[k] + flu.qib1[k] +
+                                 flu.qib2[k] + flu.qdb[k])
+                        d_mvl = sta.bowa[k] + flu.wada[k] + flu.qkap[k]
                         if d_bvl > d_mvl:
                             sta.bowa[k] = d_mvl - d_bvl
                     d_rvl = d_mvl / d_bvl
@@ -6450,7 +6448,7 @@ class Calc_Q_V1(modeltools.Method):
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
         aid = model.sequences.aides.fastaccess
-        flu.q = sta.qbga + sta.qiga1 + sta.qiga2 + sta.qdga1 + sta.qdga2
+        flu.q = sta.qbga + sta.qiga1+sta.qiga2+sta.qdga1+sta.qdga2
         if (not con.negq) and (flu.q < 0.):
             d_area = 0.
             for k in range(con.nhru):
@@ -6459,19 +6457,19 @@ class Calc_Q_V1(modeltools.Method):
             if d_area > 0.:
                 for k in range(con.nhru):
                     if con.lnk[k] in (FLUSS, SEE):
-                        flu.evi[k] += flu.q / d_area
+                        flu.evi[k] += flu.q/d_area
             flu.q = 0.
         aid.epw = 0.
         for k in range(con.nhru):
             if con.lnk[k] == WASSER:
-                flu.q += con.fhru[k] * flu.nkor[k]
-                aid.epw += con.fhru[k] * flu.evi[k]
+                flu.q += con.fhru[k]*flu.nkor[k]
+                aid.epw += con.fhru[k]*flu.evi[k]
         if (flu.q > aid.epw) or con.negq:
             flu.q -= aid.epw
         elif aid.epw > 0.:
             for k in range(con.nhru):
                 if con.lnk[k] == WASSER:
-                    flu.evi[k] *= flu.q / aid.epw
+                    flu.evi[k] *= flu.q/aid.epw
             flu.q = 0.
 
 
@@ -6512,8 +6510,8 @@ class Model(modeltools.AdHocModel):
     RECEIVER_METHODS = ()
     ADD_METHODS = (
         Return_AdjustedWindSpeed_V1,
-        Calc_PM_Single_V1,
-        Calc_Penman_V1,
+        Return_PenmanMonteith_V1,
+        Return_Penman_V1,
         Calc_EnergyBalanceSurface_V1,
         Calc_WSensSnow_Single_V1,
         Return_SaturationVapourPressure_V1,
@@ -6571,9 +6569,7 @@ class Model(modeltools.AdHocModel):
         Calc_SoilSurfaceResistance_V1,
         Calc_LanduseSurfaceResistance_V1,
         Calc_SurfaceResistance_V1,
-        Calc_EvPo_V2,
         Calc_EvPo_V3,
-        Calc_EvPoWater_V1,
         Calc_EvI_Inzp_V1,
         Calc_EvB_V1,
         Calc_EvB_V2,

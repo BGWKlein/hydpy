@@ -44,7 +44,7 @@ class Z(parametertools.FixedParameter):
 
 class LambdaG(parametertools.FixedParameter):
     """Wärmeleitfähigkeit des Bodens (thermal conductivity of the top soil
-    layer) [MJ/m/°C/T]."""
+    layer) [MJ/m/K/T]."""
     NDIM, TYPE, TIME, SPAN = 0, float, True, (0.0, None)
     INIT = 0.05184
 
@@ -66,3 +66,17 @@ class RWaterVapour(parametertools.FixedParameter):
     [MJ/kg/K]."""
     NDIM, TYPE, TIME, SPAN = 0, float, None, (0.0, None)
     INIT = 0.461495
+
+
+class L(parametertools.FixedParameter):
+    """Latente Verdunstungswärme bei 15°C (specific heat capacity of air)
+    [MJ/m²/mm]."""
+    NDIM, TYPE, TIME, SPAN = 0, float, None, (0.0, None)
+    INIT = 2.4624
+
+
+class CPLuft(parametertools.FixedParameter):
+    """Spezifische Wärmekapazität Luft (heat of condensation for a
+    water temperature of 15°C) [MJ/kg/K]."""
+    NDIM, TYPE, TIME, SPAN = 0, float, None, (0.0, None)
+    INIT = 0.001005

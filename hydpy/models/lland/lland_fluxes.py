@@ -52,12 +52,6 @@ class EvPo(lland_sequences.Flux1DSequence):
     NDIM, NUMERIC = 1, False
 
 
-class EvPoWater(lland_sequences.Flux1DSequence):
-    """Potenzielle Evaporation (potential
-    evaporation) [mm]."""
-    NDIM, NUMERIC = 1, False
-
-
 class WindSpeed2m(sequencetools.FluxSequence):
     """Adjusted wind speed [m/s]."""
     NDIM, NUMERIC = 0, False
@@ -134,12 +128,12 @@ class PossibleSunshineDuration(sequencetools.FluxSequence):
 
 
 class GlobalRadiation(sequencetools.FluxSequence):
-    """Global Radiation [MJ/m²/T]."""
+    """Global Radiation [MJ/m²]."""
     NDIM, NUMERIC = 0, False
 
 
 class WG(sequencetools.FluxSequence):
-    """Bodenwärmestrom (soil heat flux) [MJ/m²/T]
+    """Bodenwärmestrom (soil heat flux) [MJ/m²]
 
     Der Wärmestrom ist positiv, wenn die Oberfläche fühlbare Wärme verliert
     (the heat flux is positive if the surface loses heat)."""
@@ -161,7 +155,7 @@ class NetShortwaveRadiation(sequencetools.FluxSequence):
 
 
 class NetLongwaveRadiation(sequencetools.FluxSequence):
-    """Net longwave radiation [MJ/m²/T].
+    """Net longwave radiation [MJ/m²].
 
     Die Strahlungsbilanz ist positiv, wenn die Oberfläche Wärme verliert
     (the net longwave radiation is positive if the surface loses heat)."""
@@ -169,7 +163,7 @@ class NetLongwaveRadiation(sequencetools.FluxSequence):
 
 
 class NetRadiation(sequencetools.FluxSequence):
-    """Total net radiation [MJ/m²/T].
+    """Total net radiation [MJ/m²].
 
     Die Strahlungsbilanz ist positiv, wenn die Oberfläche Wärme hinzu gewinnt
     (the net shortwave radiation is positive if the surface gains heat)."""
