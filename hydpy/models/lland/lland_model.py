@@ -1667,12 +1667,12 @@ class Calc_SBes_V1(modeltools.Method):
 
         >>> from hydpy.lland import *
         >>> parameterstep('1d')
-        >>> nhru(1)
-        >>> fluxes.nbes(10.0)
-        >>> aides.sn_ratio(0.8)
+        >>> nhru(2)
+        >>> fluxes.nbes = 10.0
+        >>> aides.sn_ratio = 0.2, 0.8
         >>> model.calc_sbes_v1()
         >>> fluxes.sbes
-        sbes(8.0)
+        sbes(2.0, 8.0)
         """
 
     CONTROLPARAMETERS = (
@@ -1703,15 +1703,17 @@ class Calc_WATS_V1(modeltools.Method):
 
     Example:
 
+        On water surfaces, method |Calc_WATS_V1| never builds up a snow layer:
+
         >>> from hydpy.lland import *
         >>> parameterstep()
-        >>> nhru(2)
-        >>> lnk(FLUSS, ACKER)
+        >>> nhru(4)
+        >>> lnk(WASSER, FLUSS, SEE, ACKER)
         >>> fluxes.sbes = 2.0
         >>> states.wats = 5.5
         >>> model.calc_wats_v1()
         >>> states.wats
-        wats(0.0, 7.5)
+        wats(0.0, 0.0, 0.0, 7.5)
         """
 
     CONTROLPARAMETERS = (
@@ -1747,11 +1749,11 @@ class Calc_WaDa_WAeS_V1(modeltools.Method):
 
     Example:
 
-        For simplicity, the threshold parameter |PWMax| is set to a value
-        of two for each of the six initialized HRUs.  Thus, snow cover
-        can hold as much liquid water as it contains frozen water.
-        Stand precipitation is also always set to the same value,
-        but we vary the initial conditions of the snow cover:
+        For simplicity, we set the threshold parameter |PWMax| to a value
+        of two for each of the six initialised hydrological response units.
+        Thus, the snow layer can hold as much liquid water as it contains
+        frozen water.  Stand precipitation is also always set to the same
+        value, but we vary the initial conditions of the snow cover:
 
         >>> from hydpy.lland import *
         >>> parameterstep('1d')
@@ -1767,12 +1769,12 @@ class Calc_WaDa_WAeS_V1(modeltools.Method):
         >>> fluxes.wada
         wada(1.0, 1.0, 1.0, 0.0, 0.5, 1.0)
 
-        Note the special cases of the first two HRUs of type |FLUSS| and
-        |SEE|.  For water areas, stand precipitaton |NBes| is generally
+        Note the special cases of the first two response units of type |FLUSS|
+        and |SEE|.  For water areas, stand precipitaton |NBes| is generally
         passed to |WaDa| and |WAeS| is set to zero.  For all other land
-        use classes (of which only |ACKER| is selected), only the amount
-        of |NBes| exceeding the actual snow holding capacity is passed
-        to |WaDa|.
+        use classes (of which only |ACKER| is selected), method
+        |Calc_WaDa_WAeS_V1|only the amount only passes the part of |NBes|
+        exceeding the actual snow holding capacity to |WaDa|.
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -2669,17 +2671,20 @@ class Calc_WG_V1(modeltools.Method):
     Basic equations:
       :math:`WG = \\lambdaG \\cdot \\frac{Tz-T_{surface}}{z}`
 
+    ToDo
+
     Examples:
 
         >>> from hydpy.lland import *
         >>> simulationstep('1h')
         >>> parameterstep('1d')
-        >>> nhru(2)
+        >>> nhru(5)
         >>> fixed.lambdag.restore()
         >>> fluxes.tz = 2.0
         >>> fluxes.tkor = 10.0
-        >>> states.waes = 0.0, 1.0
-        >>> aides.temps = nan, -1.0
+        >>> states.wats = 0.0, 3.0, 6.0, 9.0, 12.0
+        >>> states.waes = 0.0, 4.0, 8.0, 12.0, 16.0
+        >>> aides.temps = nan, -1.0, -1.0, -1.0, -1.0
         >>> model.calc_wg_v1()
         >>> fluxes.wg
         wg(-0.1728, 0.0648)
@@ -2710,10 +2715,14 @@ class Calc_WG_V1(modeltools.Method):
         aid = model.sequences.aides.fastaccess
         for k in range(con.nhru):
             if sta.waes[k] > 0.:
-                d_t0 = aid.temps[k]
+                d_dt = flu.tz[k]-aid.temps[k]
+                flu.wg[k] = fix.lambdag*d_dt/fix.z
+                if d_dt > 0.:
+                    d_ice = fix.cpeis*sta.wats[k]
+                    d_water = fix.cpwasser*(sta.waes[k]-sta.wats[k])
+                    flu.wg[k] = min(flu.wg[k], d_dt*(d_ice+d_water))
             else:
-                d_t0 = flu.tkor[k]
-            flu.wg[k] = fix.lambdag*(flu.tz[k]-d_t0)/fix.z
+                flu.wg[k] = fix.lambdag*(flu.tz[k]-flu.tkor[k])/fix.z
 
 
 class Update_EBdn_V1(modeltools.Method):
@@ -3106,15 +3115,15 @@ class Calc_TempSSurface_V1(modeltools.Method):
         Through setting parameter |TempSSurfaceFlag| to |False|, we disable
         the iterative search for the correct surface temperature.  Instead,
         method |Calc_TempsSurface_V1| simply uses the bulk temperature of
-        the snow layer as its surface temperature and consistently sets
-        |WSurf| to zero:
+        the snow layer as its surface temperature and sets |WSurf| so that
+        the energy gain of the snow surface is zero::
 
         >>> control.tempssurfaceflag(False)
         >>> model.calc_tempssurface_v1()
         >>> fluxes.tempssurface
         tempssurface(nan, -2.0, -2.0, -50.0, -200.0)
         >>> fluxes.wsurf
-        wsurf(0.0, 0.0, 0.0, 0.0, 0.0)
+        wsurf(0.0, 5.008511, 4.008511, -47.307802, -163.038145)
 
         Now the energy fluxes of the snow surface are not consistent anymore:
 
@@ -3123,7 +3132,7 @@ class Calc_TempSSurface_V1(modeltools.Method):
         ...              fluxes.wsenssnow -
         ...              fluxes.wlatsnow +
         ...              fluxes.wsurf)
-        nan, -5.008511, -4.008511, 47.307802, 163.038145
+        nan, 0.0, 0.0, 0.0, 0.0
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -3170,8 +3179,8 @@ class Calc_TempSSurface_V1(modeltools.Method):
                         -50.0, 5.0, -100.0, 100.0, 0.0, 1e-8, 10)
                 else:
                     model.idx_hru = k
-                    model.return_energygainsnowsurface_v1(aid.temps[k])
-                    flu.wsurf[k] = 0
+                    flu.wsurf[k] = \
+                        -model.return_energygainsnowsurface_v1(aid.temps[k])
             else:
                 flu.tempssurface[k] = modelutils.nan
                 flu.saturationvapourpressuresnow[k] = 0.
