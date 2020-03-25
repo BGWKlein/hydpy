@@ -2915,63 +2915,71 @@ class Calc_WSurf_Single_V1(modeltools.Method):
         #  Vorsicht! abhängig von Schneetiefe oberste Schneeschicht (KTSchnee)
 
 
-class Calc_EnergyBalanceSurface_V1(modeltools.Method):
+class Return_EnergyGainSnowSurface_V1(modeltools.Method):
     """Calculate and return the net energy gain of the snow surface.
 
-    As surface cannot store any energy, method |Calc_EnergyBalanceSurface_V1|
-    returns zero if one supplies it with the correct temperature of
-    the snow surface.  Hence, this methods provides a means to find this
+    As surface cannot store any energy, method |Return_EnergyGainSnowSurface_V1|
+    returns zero if one supplies it with the correct temperature of the
+    snow surface.  Hence, this methods provides a means to find this
     "correct" temperature via root finding algorithms.
 
-    0 = Surf + Short - Long - Sens - Lat
     Basic equations:
-      :math:`EnergyBalanceSurface = WSurf(TempSSurface) +
-      NetshortwaveRadiation - NetlongwaveRadiation(TempSSurface) -
+      :math:`WSurf(TempSSurface) + NetRadiation(TempSSurface) -
       WSensSnow(TempSSurface) - WLatSnow(TempSSurface)`
+
+      :math:`NetRadiation(TempSSurface) =
+      NetshortwaveRadiation - NetlongwaveRadiation(TempSSurface)`
 
     Example:
 
-        >>> from hydpy import pub
-        >>> pub.timegrids = '2000-01-01', '2000-01-02', '1d'
+        Method |Return_EnergyGainSnowSurface_V1| relies on multiple with
+        different requirements.  Hence, we first need to specify a lot
+        of input data (see the documentation on the different submethods
+        for further information):
+
         >>> from hydpy.lland import *
+        >>> simulationstep('1d')
         >>> parameterstep()
-        >>> derived.nmblogentries.update()
         >>> nhru(1)
         >>> turb0(2.0)
         >>> turb1(2.0)
         >>> fratm(1.28)
         >>> derived.seconds(24*60*60)
         >>> inputs.relativehumidity = 60.0
-        >>> inputs.sunshineduration(10.0)
+        >>> inputs.sunshineduration = 10.0
         >>> states.waes.values = 1.0
         >>> fluxes.tkor = -3.0
         >>> fluxes.windspeed10m = 3.0
         >>> fluxes.actualvapourpressure = 0.29
         >>> fluxes.netshortwaveradiation = 2.0
         >>> fluxes.possiblesunshineduration = 12.0
-        >>> logs.loggedsunshineduration = 10.0
-        >>> logs.loggedpossiblesunshineduration = 12.0
         >>> aides.temps = -2.0
+
+        Under the defined conditions and for a snow surface temperature of
+        -4 °C, the net energy gain would be negative:
+
         >>> from hydpy import round_
         >>> model.idx_hru = 0
-        >>> round_(model.calc_energybalancesurface_v1(-4.0))
+        >>> round_(model.return_energygainsnowsurface_v1(-4.0))
         -0.454395
+
+        As a side-effect, method |Return_EnergyGainSnowSurface_V1| calculates
+        the following flux sequences for the given snow surface temperature:
+
         >>> fluxes.saturationvapourpressuresnow
         saturationvapourpressuresnow(0.453927)
         >>> fluxes.actualvapourpressuresnow
         actualvapourpressuresnow(0.272356)
         >>> fluxes.netlongwaveradiation
         netlongwaveradiation(8.126801)
+        >>> fluxes.netradiation
+        netradiation(-6.126801)
         >>> fluxes.wsenssnow
         wsenssnow(-0.6912)
         >>> fluxes.wlatsnow
         wlatsnow(-4.117207)
         >>> fluxes.wsurf
         wsurf(0.864)
-
-        .. testsetup::
-
-            >>> del pub.timegrids
     """
     SUBMETHODS = (
         Return_SaturationVapourPressure_V1,
@@ -3016,7 +3024,6 @@ class Calc_EnergyBalanceSurface_V1(modeltools.Method):
         flu = model.sequences.fluxes.fastaccess
 
         k = model.idx_hru
-
         flu.tempssurface[k] = tempssurface
 
         flu.saturationvapourpressuresnow[k] = \
@@ -3027,15 +3034,11 @@ class Calc_EnergyBalanceSurface_V1(modeltools.Method):
         model.calc_wlatsnow_single_v1(k)
         model.calc_wsenssnow_single_v1(k)
         flu.netlongwaveradiation[k] = model.return_netlongwaveradiation_v1(k)
+        flu.netradiation[k] = \
+            flu.netshortwaveradiation[k]-flu.netlongwaveradiation[k]
         model.calc_wsurf_single_v1(k)
 
-        return (
-            flu.wsurf[k] +
-            flu.netshortwaveradiation[k] -
-            flu.netlongwaveradiation[k] -
-            flu.wsenssnow[k] -
-            flu.wlatsnow[k]
-        )
+        return flu.wsurf[k]+flu.netradiation[k]-flu.wsenssnow[k]-flu.wlatsnow[k]
 
 
 class Calc_TempSSurface_V1(modeltools.Method):
@@ -3043,59 +3046,84 @@ class Calc_TempSSurface_V1(modeltools.Method):
 
     |Calc_TempsSurface_V1| needs to determine the snow surface temperature
     via iteration.  Therefore, it uses the class |PegasusTempSSurface|
-    which searche the root of the net energy gain of the snow surface
-    define by method |Calc_EnergyBalanceSurface_V1|.
+    which searches the root of the net energy gain of the snow surface
+    defined by method |Return_EnergyGainSnowSurface_V1|.
 
     For snow-free conditions, method |Calc_TempsSurface_V1| sets the value
     of |TempSSurface| to |numpy.nan| and the values of |WSensSnow|,
-    |WLatSnow|, and |WSurf| to zero.
+    |WLatSnow|, and |WSurf| to zero.  For snow conditions, the side-effects
+    discussed in the documentation on method |Return_EnergyGainSnowSurface_V1|
+    apply.
 
     Example:
 
+        We reuse the configuration of the documentation on method
+        |Return_EnergyGainSnowSurface_V1|, except that we prepare five
+        hydrological response units:
+
         >>> from hydpy.lland import *
+        >>> simulationstep('1d')
         >>> parameterstep()
         >>> nhru(5)
         >>> turb0(2.0)
         >>> turb1(2.0)
         >>> fratm(1.28)
         >>> derived.seconds(24*60*60)
-        >>> inputs.sunshineduration = 10.0
         >>> inputs.relativehumidity = 60.0
+        >>> inputs.sunshineduration = 10.0
         >>> states.waes.values = 0.0, 1.0, 1.0, 1.0, 1.0
-        >>> fluxes.actualvapourpressure = 0.29
-        >>> fluxes.netshortwaveradiation = 1.0, 1.0, 2.0, 2.0, 2.0
-        >>> fluxes.possiblesunshineduration = 12.0
         >>> fluxes.tkor = -3.0
         >>> fluxes.windspeed10m = 3.0
+        >>> fluxes.actualvapourpressure = 0.29
+        >>> fluxes.possiblesunshineduration = 12.0
+        >>> fluxes.netshortwaveradiation = 1.0, 1.0, 2.0, 2.0, 2.0
         >>> aides.temps = nan, -2.0, -2.0, -50.0, -200.0
+
+        For the first, snow-free response unit, we cannot define a reasonable
+        snow surface temperature, of course.  Comparing response units
+        two and three shows that a moderate increase in short wave radiation
+        is compensated by a moderate increase in snow surface temperature.
+        To demonstrate the robustness of the implemented approach, response
+        units three to five show the extreme decrease in surface temperature
+        due to an even more extrem decrease in the bulk temperature of the
+        snow layer:
 
         >>> control.tempssurfaceflag(True)
         >>> model.calc_tempssurface_v1()
         >>> fluxes.tempssurface
         tempssurface(nan, -4.832608, -4.259254, -16.889144, -63.201335)
 
+        As to be expected, the energy fluxes of the snow surface neutralise
+        each other (within the defined numerical accuracy):
+
         >>> from hydpy import print_values
-        >>> print_values(fluxes.netshortwaveradiation -
-        ...              fluxes.netlongwaveradiation -
+        >>> print_values(fluxes.netradiation -
         ...              fluxes.wsenssnow -
         ...              fluxes.wlatsnow +
         ...              fluxes.wsurf)
         nan, 0.0, 0.0, 0.0, 0.0
 
+        Through setting parameter |TempSSurfaceFlag| to |False|, we disable
+        the iterative search for the correct surface temperature.  Instead,
+        method |Calc_TempsSurface_V1| simply uses the bulk temperature of
+        the snow layer as its surface temperature and consistently sets
+        |WSurf| to zero:
+
         >>> control.tempssurfaceflag(False)
         >>> model.calc_tempssurface_v1()
         >>> fluxes.tempssurface
         tempssurface(nan, -2.0, -2.0, -50.0, -200.0)
+        >>> fluxes.wsurf
+        wsurf(0.0, 0.0, 0.0, 0.0, 0.0)
+
+        Now the energy fluxes of the snow surface are not consistent anymore:
 
         >>> from hydpy import print_values
-        >>> print_values(fluxes.netshortwaveradiation -
-        ...              fluxes.netlongwaveradiation -
+        >>> print_values(fluxes.netradiation -
         ...              fluxes.wsenssnow -
         ...              fluxes.wlatsnow +
         ...              fluxes.wsurf)
         nan, -5.008511, -4.008511, 47.307802, 163.038145
-        >>> fluxes.wsurf
-        wsurf(0.0, 0.0, 0.0, 0.0, 0.0)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -3142,7 +3170,7 @@ class Calc_TempSSurface_V1(modeltools.Method):
                         -50.0, 5.0, -100.0, 100.0, 0.0, 1e-8, 10)
                 else:
                     model.idx_hru = k
-                    model.calc_energybalancesurface_v1(aid.temps[k])
+                    model.return_energygainsnowsurface_v1(aid.temps[k])
                     flu.wsurf[k] = 0
             else:
                 flu.tempssurface[k] = modelutils.nan
@@ -3154,28 +3182,33 @@ class Calc_TempSSurface_V1(modeltools.Method):
 
 
 class Calc_NetRadiation_V1(modeltools.Method):
-    """Calculate the total net radiation.
+    """Calculate the total net radiation for snow-free land surfaces.
 
     Basic equation (`Allen`_, equation 40):
-      :math:`NetRadiation = NetShortwaveRadiation-NetLongwaveRadiation`
+      :math:`NetRadiation = NetShortwaveRadiation - NetLongwaveRadiation`
 
     Example:
 
-        The following calculation agrees with example 12 of `Allen`_:
+        For the first, snow-free hydrological response unit, the result agrees
+        with example 12 of `Allen`_; for the second, snow-covered response
+        unit, the original |NetRadiation| value remains unchanged:
 
         >>> from hydpy.lland import *
         >>> parameterstep()
         >>> nhru(2)
         >>> fluxes.netshortwaveradiation = 11.1
         >>> fluxes.netlongwaveradiation = 3.5
+        >>> fluxes.netradiation = 2.0
+        >>> states.waes = 0.0, 1.0
         >>> model.calc_netradiation_v1()
         >>> fluxes.netradiation
-        netradiation(7.6, 7.6)
+        netradiation(7.6, 2.0)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
     REQUIREDSEQUENCES = (
+        lland_states.WAeS,
         lland_fluxes.NetShortwaveRadiation,
         lland_fluxes.NetLongwaveRadiation,
     )
@@ -3187,9 +3220,11 @@ class Calc_NetRadiation_V1(modeltools.Method):
     def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
+        sta = model.sequences.states.fastaccess
         for k in range(con.nhru):
-            flu.netradiation[k] = \
-                flu.netshortwaveradiation[k]-flu.netlongwaveradiation[k]
+            if sta.waes[k] <= 0.:
+                flu.netradiation[k] = \
+                    flu.netshortwaveradiation[k]-flu.netlongwaveradiation[k]
 
 
 class Calc_SchmPot_V1(modeltools.Method):
@@ -4311,8 +4346,8 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
         >>> fluxes.landusesurfaceresistance = 500.0, 0.0, 0.0, 0.0
         >>> model.idx_sim = 1
         >>> model.calc_surfaceresistance_v1()
-        >>> fluxes.surfaceresistance
-        surfaceresistance(500.0, 0.0, 0.0, 0.0)
+        >>> fluxes.actualsurfaceresistance
+        actualsurfaceresistance(500.0, 0.0, 0.0, 0.0)
 
         For all other landuse types, the final soil resistance is a
         combination of |LanduseSurfaceResistance| and |SoilSurfaceResistance|
@@ -4340,16 +4375,16 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
 
         >>> fluxes.possiblesunshineduration = 24.0
         >>> model.calc_surfaceresistance_v1()
-        >>> fluxes.surfaceresistance
-        surfaceresistance(200.0, 132.450331, 109.174477, 101.43261)
+        >>> fluxes.actualsurfaceresistance
+        actualsurfaceresistance(200.0, 132.450331, 109.174477, 101.43261)
 
         For a polar night, there is a leaf area index-dependend interpolation
         between soil surface resistance and a fixed resistance value:
 
         >>> fluxes.possiblesunshineduration = 0.0
         >>> model.calc_surfaceresistance_v1()
-        >>> fluxes.surfaceresistance
-        surfaceresistance(200.0, 172.413793, 142.857143, 111.111111)
+        >>> fluxes.actualsurfaceresistance
+        actualsurfaceresistance(200.0, 172.413793, 142.857143, 111.111111)
 
         For all days that are not polar nights or polar days, the values
         of the two examples above are weighted based on the possible
@@ -4357,8 +4392,8 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
 
         >>> fluxes.possiblesunshineduration = 12.0
         >>> model.calc_surfaceresistance_v1()
-        >>> fluxes.surfaceresistance
-        surfaceresistance(200.0, 149.812734, 123.765057, 106.051498)
+        >>> fluxes.actualsurfaceresistance
+        actualsurfaceresistance(200.0, 149.812734, 123.765057, 106.051498)
 
         The following examples demonstrate that method
         |Calc_SurfaceResistance_V1| works similar when applied on an
@@ -4377,18 +4412,18 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
         >>> model.idx_sim = 2
         >>> fluxes.possiblesunshineduration = 1.0
         >>> model.calc_surfaceresistance_v1()
-        >>> fluxes.surfaceresistance
-        surfaceresistance(109.174477)
+        >>> fluxes.actualsurfaceresistance
+        actualsurfaceresistance(109.174477)
 
         >>> fluxes.possiblesunshineduration = 0.0
         >>> model.calc_surfaceresistance_v1()
-        >>> fluxes.surfaceresistance
-        surfaceresistance(142.857143)
+        >>> fluxes.actualsurfaceresistance
+        actualsurfaceresistance(142.857143)
 
         >>> fluxes.possiblesunshineduration = 0.5
         >>> model.calc_surfaceresistance_v1()
-        >>> fluxes.surfaceresistance
-        surfaceresistance(123.765057)
+        >>> fluxes.actualsurfaceresistance
+        actualsurfaceresistance(123.765057)
 
         .. testsetup::
 
@@ -4408,7 +4443,7 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
     )
 
     RESULTSEQUENCES = (
-        lland_fluxes.SurfaceResistance,
+        lland_fluxes.ActualSurfaceResistance,
     )
 
     @staticmethod
@@ -4419,7 +4454,7 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
         d_hours = der.seconds/60./60.
         for k in range(con.nhru):
             if con.lnk[k] in (VERS, FLUSS, SEE, WASSER):
-                flu.surfaceresistance[k] = flu.landusesurfaceresistance[k]
+                flu.actualsurfaceresistance[k] = flu.landusesurfaceresistance[k]
             else:
                 d_lai = con.lai[con.lnk[k]-1, der.moy[model.idx_sim]]
                 d_invrestday = (
@@ -4427,7 +4462,7 @@ class Calc_SurfaceResistance_V1(modeltools.Method):
                     .7**d_lai/flu.soilsurfaceresistance[k])
                 d_invrestnight = \
                     d_lai/2500.+1./flu.soilsurfaceresistance[k]
-                flu.surfaceresistance[k] = (
+                flu.actualsurfaceresistance[k] = (
                     1. /
                     (flu.possiblesunshineduration/d_hours*d_invrestday +
                      (1.-flu.possiblesunshineduration/d_hours)*d_invrestnight))
@@ -4462,7 +4497,7 @@ class Return_PenmanMonteith_V1(modeltools.Method):
         deficit (|SaturationVapourPressure| minus |ActualVapourPressure|
         are identical.  To make the results roughly comparable, we use
         resistances suitable for water surfaces through setting
-        |AerodynamicResistance| to zero and |SurfaceResistance| to
+        |AerodynamicResistance| to zero and |ActualSurfaceResistance| to
         a reasonalbe precalculated value of 106 s/m:
 
         >>> from hydpy.lland import *
@@ -4478,7 +4513,7 @@ class Return_PenmanMonteith_V1(modeltools.Method):
         >>> fluxes.actualvapourpressure = 1.2, 1.2, 1.2, 1.2, 0.6, 0.0, 0.0
         >>> fluxes.densityair = 1.24
         >>> fluxes.psychrometricconstant = 0.07
-        >>> fluxes.surfaceresistance = 0.0
+        >>> fluxes.actualsurfaceresistance = 0.0
         >>> fluxes.aerodynamicresistance = 106.0
         >>> fluxes.tkor = 10.0
 
@@ -4510,7 +4545,7 @@ class Return_PenmanMonteith_V1(modeltools.Method):
         of the first three response units due to correction factor `C`
         depending on |AerodynamicResistance|):
 
-        >>> fluxes.surfaceresistance = 80.0
+        >>> fluxes.actualsurfaceresistance = 80.0
         >>> fluxes.aerodynamicresistance = 40.0
         >>> for hru in range(7):
         ...     deficit = (fluxes.saturationvapourpressure[hru] -
@@ -4526,16 +4561,17 @@ class Return_PenmanMonteith_V1(modeltools.Method):
         0.0, 1.2, 4.70098
         7.0, 1.2, 5.404379
 
-        The above results are sensitive to the relation of |SurfaceResistance|
-        and |AerodynamicResistance|.  The following example demonstrates this
-        sensitivity through varying |SurfaceResistance| over a wide range:
+        The above results are sensitive to the relation of
+        |ActualSurfaceResistance| and |AerodynamicResistance|.  The
+        following example demonstrates this sensitivity through varying
+        |ActualSurfaceResistance| over a wide range:
 
         >>> fluxes.netradiation = 8.0
         >>> fluxes.actualvapourpressure = 0.0
-        >>> fluxes.surfaceresistance = (
+        >>> fluxes.actualsurfaceresistance = (
         ...     0.0, 20.0, 50.0, 100.0, 200.0, 500.0, 1000.0)
         >>> for hru in range(7):
-        ...     print_values([fluxes.surfaceresistance[hru],
+        ...     print_values([fluxes.actualsurfaceresistance[hru],
         ...                   model.return_penmanmonteith_v1(hru)])
         0.0, 10.84584
         20.0, 8.664782
@@ -4556,7 +4592,7 @@ class Return_PenmanMonteith_V1(modeltools.Method):
         >>> fluxes.netradiation /= 24
         >>> fluxes.wg = -1.0/24
         >>> fluxes.actualvapourpressure = 1.2, 1.2, 1.2, 1.2, 0.6, 0.0, 0.0
-        >>> fluxes.surfaceresistance = 0.0
+        >>> fluxes.actualsurfaceresistance = 0.0
         >>> fluxes.aerodynamicresistance = 106.0
         >>> for hru in range(7):
         ...     deficit = (fluxes.saturationvapourpressure[hru] -
@@ -4593,7 +4629,7 @@ class Return_PenmanMonteith_V1(modeltools.Method):
         lland_fluxes.PsychrometricConstant,
         lland_fluxes.DensityAir,
         lland_fluxes.AerodynamicResistance,
-        lland_fluxes.SurfaceResistance,
+        lland_fluxes.ActualSurfaceResistance,
     )
 
     @staticmethod
@@ -4611,8 +4647,8 @@ class Return_PenmanMonteith_V1(modeltools.Method):
              (flu.saturationvapourpressure[k]-flu.actualvapourpressure[k]) *
              d_c/flu.aerodynamicresistance[k]) /
             (flu.saturationvapourpressureslope[k] +
-             flu.psychrometricconstant *
-             (1.+flu.surfaceresistance[k]/flu.aerodynamicresistance[k])*d_c) /
+             flu.psychrometricconstant*d_c *
+             (1.+flu.actualsurfaceresistance[k]/flu.aerodynamicresistance[k])) /
             fix.l)
 
 
@@ -4712,7 +4748,7 @@ class Return_Penman_V1(modeltools.Method):
 
 
 class Calc_EvPo_V3(modeltools.Method):
-    """Calculate the potential evaporation according to Penman and return it.
+    """Calculate the potential evaporation according to Penman.
 
     At the moment, method |Calc_EvPo_V3| just applies method
     |Return_PenmanEvaporation_V1| on all hydrological response units,
@@ -4767,7 +4803,6 @@ class Calc_EvPo_V3(modeltools.Method):
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
-            x = 1
             flu.evpo[k] = max(model.return_penman_v1(k), 0.)
 
 
@@ -4789,15 +4824,18 @@ class Calc_EvPoSnow_WAeS_WATS_V1(modeltools.Method):
         >>> states.wats = 0.0, 4.0, 4.0, 4.0, 4.0
         >>> model.calc_evposnow_waes_wats_v1()
         >>> fluxes.evposnow
-        evposnow(0.0, -0.8, 0.4, 1.6, 2.4)
+        evposnow(0.0, -0.812216, 0.406108, 1.624431, 2.436647)
         >>> states.waes
-        waes(0.0, 5.8, 4.6, 3.4, 2.6)
+        waes(0.0, 5.812216, 4.593892, 3.375569, 2.563353)
         >>> states.wats
-        wats(0.0, 4.0, 4.0, 3.4, 2.6)
+        wats(0.0, 4.0, 4.0, 3.375569, 2.563353)
     """
 
     CONTROLPARAMETERS = (
         lland_control.NHRU,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.L,
     )
     REQUIREDSEQUENCES = (
         lland_fluxes.WLatSnow,
@@ -4814,18 +4852,17 @@ class Calc_EvPoSnow_WAeS_WATS_V1(modeltools.Method):
     @staticmethod
     def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
+        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
-
         for k in range(con.nhru):
             if sta.waes[k] > 0:
-                flu.evposnow[k] = flu.wlatsnow[k] / 2.5
+                flu.evposnow[k] = flu.wlatsnow[k]/fix.l
                 sta.waes[k] -= flu.evposnow[k]
                 sta.waes[k] = max(sta.waes[k], 0)
                 sta.wats[k] = min(sta.waes[k], sta.wats[k])
             else:
                 flu.evposnow[k] = 0.
-        # todo: Konstante latent heat of vaporization 2.5
 
 
 class Calc_EvI_Inzp_V1(modeltools.Method):
@@ -4899,6 +4936,77 @@ class Calc_EvI_Inzp_V1(modeltools.Method):
                 sta.inzp[k] -= flu.evi[k]
 
 
+class Calc_EvI_Inzp_V2(modeltools.Method):
+    """Calculate interception evaporation and update the interception
+    storage accordingly for snow-free surfaces.
+
+    Method |Calc_EvI_Inzp_V2| works exactly like method |Calc_EvI_Inzp_V1|,
+    except that it sets |EvI| to zero for all snow-covered surfaces.
+
+    Examples:
+
+        For snow-free land surfaces (see the first two hydrological
+        response units), there is no difference to the results discussed
+        in the documentation on method |Calc_EvI_Inzp_V1|.  For snow-covered
+        surfaces, there is no interception evaporation and thus no change
+        in interception storage (see the third response unit):
+
+        >>> from hydpy.lland import *
+        >>> parameterstep('1d')
+        >>> nhru(3)
+        >>> lnk(ACKER)
+        >>> states.inzp = 2.0, 4.0, 4.0
+        >>> fluxes.evpo = 3.0
+        >>> states.waes = 0.0, 0.0, 1.0
+        >>> model.calc_evi_inzp_v2()
+        >>> states.inzp
+        inzp(0.0, 1.0, 4.0)
+        >>> fluxes.evi
+        evi(2.0, 3.0, 0.0)
+
+        For water areas, where we do not model any snow processes, there
+        is no difference to the results of method |Calc_EvI_Inzp_V1|:
+
+        >>> lnk(WASSER, FLUSS, SEE)
+        >>> states.inzp = 2.0
+        >>> fluxes.evpo = 3.0
+        >>> model.calc_evi_inzp_v1()
+        >>> states.inzp
+        inzp(0.0, 0.0, 0.0)
+        >>> fluxes.evi
+        evi(3.0, 3.0, 3.0)
+    """
+    CONTROLPARAMETERS = (
+        lland_control.NHRU,
+        lland_control.Lnk,
+    )
+    REQUIREDSEQUENCES = (
+        lland_states.WAeS,
+        lland_fluxes.EvPo,
+    )
+    UPDATEDSEQUENCES = (
+        lland_states.Inzp,
+    )
+    RESULTSEQUENCES = (
+        lland_fluxes.EvI,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model') -> None:
+        con = model.parameters.control.fastaccess
+        flu = model.sequences.fluxes.fastaccess
+        sta = model.sequences.states.fastaccess
+        for k in range(con.nhru):
+            if con.lnk[k] in (WASSER, FLUSS, SEE):
+                flu.evi[k] = flu.evpo[k]
+                sta.inzp[k] = 0.
+            elif sta.waes[k] > 0.:
+                flu.evi[k] = 0.
+            else:
+                flu.evi[k] = min(flu.evpo[k], sta.inzp[k])
+                sta.inzp[k] -= flu.evi[k]
+
+
 class Calc_EvB_V2(modeltools.Method):
     """Calculate the actual evapotranspiration from the soil.
 
@@ -4940,7 +5048,7 @@ class Calc_EvB_V2(modeltools.Method):
         >>> fluxes.actualvapourpressure = 0.0
         >>> fluxes.densityair = 1.24
         >>> fluxes.psychrometricconstant = 0.07
-        >>> fluxes.surfaceresistance = 0.0
+        >>> fluxes.actualsurfaceresistance = 0.0
         >>> fluxes.aerodynamicresistance = 106.0
         >>> fluxes.tkor = 10.0
         >>> fluxes.evpo = 0.0, 6.0, 6.0, 6.0, 6.0, 6.0
@@ -4967,7 +5075,7 @@ class Calc_EvB_V2(modeltools.Method):
         lland_fluxes.PsychrometricConstant,
         lland_fluxes.DensityAir,
         lland_fluxes.AerodynamicResistance,
-        lland_fluxes.SurfaceResistance,
+        lland_fluxes.ActualSurfaceResistance,
         lland_fluxes.EvPo,
         lland_fluxes.EvI,
         lland_states.WAeS,
@@ -6500,7 +6608,7 @@ class Pass_Q_V1(modeltools.Method):
 class PegasusTempSSurface(roottools.Pegasus):
     """Objective function of PegasesTempSSurface iteration."""   # ToDo
     METHODS = (
-        Calc_EnergyBalanceSurface_V1,
+        Return_EnergyGainSnowSurface_V1,
     )
 
 
@@ -6512,7 +6620,7 @@ class Model(modeltools.AdHocModel):
         Return_AdjustedWindSpeed_V1,
         Return_PenmanMonteith_V1,
         Return_Penman_V1,
-        Calc_EnergyBalanceSurface_V1,
+        Return_EnergyGainSnowSurface_V1,
         Calc_WSensSnow_Single_V1,
         Return_SaturationVapourPressure_V1,
         Return_ActualVapourPressure_V1,
@@ -6571,6 +6679,7 @@ class Model(modeltools.AdHocModel):
         Calc_SurfaceResistance_V1,
         Calc_EvPo_V3,
         Calc_EvI_Inzp_V1,
+        Calc_EvI_Inzp_V2,
         Calc_EvB_V1,
         Calc_EvB_V2,
         Update_EBdn_V1,

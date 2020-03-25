@@ -190,7 +190,7 @@ class LanduseSurfaceResistance(sequencetools.FluxSequence):
     NDIM, NUMERIC, SPAN = 1, False, (0., None)
 
 
-class SurfaceResistance(sequencetools.FluxSequence):
+class ActualSurfaceResistance(sequencetools.FluxSequence):
     """Oberflächenwiderstand (surface resistance) [s/m]."""
     NDIM, NUMERIC, SPAN = 1, False, (0., None)
 
