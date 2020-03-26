@@ -2084,9 +2084,9 @@ class Model(modeltools.AdHocModel):
         lland_model.Return_PenmanMonteith_V1,
         lland_model.Return_EnergyGainSnowSurface_V1,
         lland_model.Return_SaturationVapourPressure_V1,
-        lland_model.Calc_WSensSnow_Single_V1,
-        lland_model.Calc_WLatSnow_Single_V1,
-        lland_model.Calc_WSurf_Single_V1,
+        lland_model.Return_WSensSnow_V1,
+        lland_model.Return_WLatSnow_V1,
+        lland_model.Return_WSurf_V1,
     )
     RUN_METHODS = (
         lland_model.Calc_NKor_V1,

@@ -2013,7 +2013,6 @@ class Return_SaturationVapourPressure_V1(modeltools.Method):
     Basic equation (Allen, equation 11, modified):
       :math:`0.6108 \\cdot \\exp(\\frac{17.08085 \\cdot TKor}{TKor + 234.175})`
 
-
     Example:
 
         >>> from hydpy.lland import *
@@ -2153,9 +2152,6 @@ class Calc_ActualVapourPressure_V1(modeltools.Method):
         lland_inputs.RelativeHumidity,
         lland_fluxes.SaturationVapourPressure,
     )
-    RESULTSEQUENCES = (
-        lland_fluxes.ActualVapourPressure,
-    )
 
     @staticmethod
     def __call__(model: 'lland.Model') -> None:
@@ -2250,9 +2246,6 @@ class Return_NetLongwaveRadiation_V1(modeltools.Method):
         lland_inputs.SunshineDuration,
         lland_logs.LoggedPossibleSunshineDuration,
         lland_logs.LoggedSunshineDuration,
-    )
-    RESULTSEQUENCES = (
-        lland_fluxes.NetLongwaveRadiation,
     )
 
     @staticmethod
@@ -2678,13 +2671,12 @@ class Calc_WG_V1(modeltools.Method):
         >>> from hydpy.lland import *
         >>> simulationstep('1h')
         >>> parameterstep('1d')
-        >>> nhru(5)
+        >>> nhru(2)
         >>> fixed.lambdag.restore()
         >>> fluxes.tz = 2.0
         >>> fluxes.tkor = 10.0
-        >>> states.wats = 0.0, 3.0, 6.0, 9.0, 12.0
-        >>> states.waes = 0.0, 4.0, 8.0, 12.0, 16.0
-        >>> aides.temps = nan, -1.0, -1.0, -1.0, -1.0
+        >>> states.waes = 0.0, 1.0
+        >>> aides.temps = nan, -1.0
         >>> model.calc_wg_v1()
         >>> fluxes.wg
         wg(-0.1728, 0.0648)
@@ -2715,14 +2707,10 @@ class Calc_WG_V1(modeltools.Method):
         aid = model.sequences.aides.fastaccess
         for k in range(con.nhru):
             if sta.waes[k] > 0.:
-                d_dt = flu.tz[k]-aid.temps[k]
-                flu.wg[k] = fix.lambdag*d_dt/fix.z
-                if d_dt > 0.:
-                    d_ice = fix.cpeis*sta.wats[k]
-                    d_water = fix.cpwasser*(sta.waes[k]-sta.wats[k])
-                    flu.wg[k] = min(flu.wg[k], d_dt*(d_ice+d_water))
+                d_temp = aid.temps[k]
             else:
-                flu.wg[k] = fix.lambdag*(flu.tz[k]-flu.tkor[k])/fix.z
+                d_temp = flu.tkor[k]
+            flu.wg[k] = fix.lambdag*(flu.tz[k]-d_temp)/fix.z
 
 
 class Update_EBdn_V1(modeltools.Method):
@@ -2783,8 +2771,8 @@ class Update_EBdn_V1(modeltools.Method):
             sta.ebdn[k] += con.wg2z[der.moy[model.idx_sim]]-flu.wg[k]
 
 
-class Calc_WSensSnow_Single_V1(modeltools.Method):
-    """Calculate the sensible heat flux of the snow surface.
+class Return_WSensSnow_V1(modeltools.Method):
+    """Calculate the sensible heat flux of the snow surfac and return it.
 
     Basic equations:
       :math:`WSensSnow  = (turb0 + turb1 \\cdot WindSpeed10m) \\cdot
@@ -2801,10 +2789,11 @@ class Calc_WSensSnow_Single_V1(modeltools.Method):
         >>> fluxes.tkor = -2.0, -1.0
         >>> fluxes.tempssurface = -5.0, 0.0
         >>> fluxes.windspeed10m = 3.0
-        >>> model.calc_wsenssnow_single_v1(0)
-        >>> model.calc_wsenssnow_single_v1(1)
-        >>> fluxes.wsenssnow
-        wsenssnow(-2.0736, 0.6912)
+        >>> from hydpy import round_
+        >>> round_(model.return_wsenssnow_v1(0))
+        -2.0736
+        >>> round_(model.return_wsenssnow_v1(1))
+        0.6912
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -2819,22 +2808,17 @@ class Calc_WSensSnow_Single_V1(modeltools.Method):
         lland_fluxes.TempSSurface,
         lland_fluxes.WindSpeed10m,
     )
-    RESULTSEQUENCES = (
-        lland_fluxes.WSensSnow,
-    )
 
     @staticmethod
-    def __call__(model: 'lland.Model', k: int) -> None:
+    def __call__(model: 'lland.Model', k: int) -> float:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        flu.wsenssnow[k] = (
-            (con.turb0+con.turb1*flu.windspeed10m) *
-            (flu.tempssurface[k]-flu.tkor[k]) *
-            der.seconds*1e-6)
+        return ((con.turb0+con.turb1*flu.windspeed10m) *
+                (flu.tempssurface[k]-flu.tkor[k])*der.seconds*1e-6)
 
 
-class Calc_WLatSnow_Single_V1(modeltools.Method):
+class Return_WLatSnow_V1(modeltools.Method):
     """Calculate the latent heat flux of the snow surface.
 
     Basic equations:
@@ -2852,10 +2836,11 @@ class Calc_WLatSnow_Single_V1(modeltools.Method):
         >>> turb1(2.0)
         >>> fluxes.windspeed10m(3.0)
         >>> fluxes.actualvapourpressuresnow(0.4, 0.8)
-        >>> for k in range(2):
-        ...     model.calc_wlatsnow_single_v1(k)
-        >>> fluxes.wlatsnow
-        wlatsnow(-2.564407, 2.301641)
+        >>> from hydpy import round_
+        >>> round_(model.return_wlatsnow_v1(0))
+        -2.564407
+        >>> round_(model.return_wlatsnow_v1(1))
+        2.301641
         """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
@@ -2869,22 +2854,18 @@ class Calc_WLatSnow_Single_V1(modeltools.Method):
         lland_fluxes.WindSpeed10m,  # todo: wirklich 10m?
         lland_fluxes.ActualVapourPressureSnow,
     )
-    RESULTSEQUENCES = (
-        lland_fluxes.WLatSnow,
-    )
 
     @staticmethod
-    def __call__(model: 'lland.Model', k: int) -> None:
+    def __call__(model: 'lland.Model', k: int) -> float:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        flu.wlatsnow[k] = (
-            der.seconds*1e-6*(con.turb0+con.turb1*flu.windspeed10m) *
-            (17.6*(flu.actualvapourpressuresnow[k]-.6108)))
+        return (der.seconds*1e-6*(con.turb0+con.turb1*flu.windspeed10m) *
+                (17.6*(flu.actualvapourpressuresnow[k]-.6108)))
         # todo: Psychrometerkonstante über Schnee berechnen??
 
 
-class Calc_WSurf_Single_V1(modeltools.Method):
+class Return_WSurf_V1(modeltools.Method):
     """Calculate the snow surface heat flux.
 
     Basic equation:
@@ -2898,9 +2879,9 @@ class Calc_WSurf_Single_V1(modeltools.Method):
         >>> derived.seconds(24*60*60)
         >>> fluxes.tempssurface = -3.0
         >>> aides.temps = -2.0
-        >>> model.calc_wsurf_single_v1(0)
-        >>> fluxes.wsurf
-        wsurf(0.432)
+        >>> from hydpy import round_
+        >>> round_(model.return_wsurf_v1(0))
+        0.432
     """
     DERIVEDPARAMETERS = (
         lland_derived.Seconds,
@@ -2914,11 +2895,11 @@ class Calc_WSurf_Single_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: 'lland.Model', k: int) -> None:
+    def __call__(model: 'lland.Model', k: int) -> float:
         der = model.parameters.derived.fastaccess
         flu = model.sequences.fluxes.fastaccess
         aid = model.sequences.aides.fastaccess
-        flu.wsurf[k] = (aid.temps[k]-flu.tempssurface[k])*5.0e-6*der.seconds
+        return (aid.temps[k]-flu.tempssurface[k])*5.0e-6*der.seconds
 
         # todo: Konstante: Effektive Wärmeleitfähigkeit des Schnees: 5 W/m²/K
         #  Vorsicht! abhängig von Schneetiefe oberste Schneeschicht (KTSchnee)
@@ -2941,10 +2922,10 @@ class Return_EnergyGainSnowSurface_V1(modeltools.Method):
 
     Example:
 
-        Method |Return_EnergyGainSnowSurface_V1| relies on multiple with
-        different requirements.  Hence, we first need to specify a lot
-        of input data (see the documentation on the different submethods
-        for further information):
+        Method |Return_EnergyGainSnowSurface_V1| relies on multiple
+        submethods with different requirements.  Hence, we first need to
+        specify a lot of input data (see the documentation on the
+        different submethods for further information):
 
         >>> from hydpy.lland import *
         >>> simulationstep('1d')
@@ -2993,9 +2974,9 @@ class Return_EnergyGainSnowSurface_V1(modeltools.Method):
     SUBMETHODS = (
         Return_SaturationVapourPressure_V1,
         Return_ActualVapourPressure_V1,
-        Calc_WSensSnow_Single_V1,
-        Calc_WLatSnow_Single_V1,
-        Calc_WSurf_Single_V1,
+        Return_WSensSnow_V1,
+        Return_WLatSnow_V1,
+        Return_WSurf_V1,
         Return_NetLongwaveRadiation_V1,
     )
     CONTROLPARAMETERS = (
@@ -3040,12 +3021,12 @@ class Return_EnergyGainSnowSurface_V1(modeltools.Method):
         flu.actualvapourpressuresnow[k] = \
             model.return_actualvapourpressure_v1(
                 flu.saturationvapourpressuresnow[k])
-        model.calc_wlatsnow_single_v1(k)
-        model.calc_wsenssnow_single_v1(k)
+        flu.wlatsnow[k] = model.return_wlatsnow_v1(k)
+        flu.wsenssnow[k] = model.return_wsenssnow_v1(k)
         flu.netlongwaveradiation[k] = model.return_netlongwaveradiation_v1(k)
         flu.netradiation[k] = \
             flu.netshortwaveradiation[k]-flu.netlongwaveradiation[k]
-        model.calc_wsurf_single_v1(k)
+        flu.wsurf[k] = model.return_wsurf_v1(k)
 
         return flu.wsurf[k]+flu.netradiation[k]-flu.wsenssnow[k]-flu.wlatsnow[k]
 
@@ -6630,11 +6611,11 @@ class Model(modeltools.AdHocModel):
         Return_PenmanMonteith_V1,
         Return_Penman_V1,
         Return_EnergyGainSnowSurface_V1,
-        Calc_WSensSnow_Single_V1,
+        Return_WSensSnow_V1,
         Return_SaturationVapourPressure_V1,
         Return_ActualVapourPressure_V1,
-        Calc_WLatSnow_Single_V1,
-        Calc_WSurf_Single_V1,
+        Return_WLatSnow_V1,
+        Return_WSurf_V1,
         Return_NetLongwaveRadiation_V1,
     )
     RUN_METHODS = (
