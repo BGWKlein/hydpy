@@ -4293,7 +4293,7 @@ class Calc_LanduseSurfaceResistance_V1(modeltools.Method):
             if con.lnk[k] not in (WASSER, FLUSS, SEE, VERS):
                 if sta.bowa[k] <= 0.:
                     flu.landusesurfaceresistance[k] = modelutils.inf
-                if sta.bowa[k] < con.pwp[k]:
+                elif sta.bowa[k] < con.pwp[k]:
                     flu.landusesurfaceresistance[k] *= (
                         3.5*(1.-sta.bowa[k]/con.pwp[k]) +
                         modelutils.exp(.2*con.pwp[k]/sta.bowa[k]))

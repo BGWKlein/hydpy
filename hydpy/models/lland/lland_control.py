@@ -124,32 +124,32 @@ class FVF(lland_parameters.ParameterComplete):
     """Frostversiegelungsfaktor zur Ermittelung des Frostversiegelungsgrades
     (frost sealing factor for determination of the degree of frost sealing
     FVG) [-]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0.0, 1.0)
+    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., 1.)
     INIT = 0.5
 
 
 class BSFF(lland_parameters.ParameterComplete):
     """Exponent zur Ermittelung des Frostversieglungsgrades (frost sealing
     exponent for determination of degree of frost sealing FVG) [-]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0.0, None)
-    INIT = 2.0
+    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., None)
+    INIT = 2.
 
 
 class CropHeight(lland_parameters.LanduseMonthParameter):
     """Crop height [m]."""
-    NDIM, TYPE, TIME, SPAN = 2, float, None, (0.01, None)
+    NDIM, TYPE, TIME, SPAN = 2, float, None, (0., None)
     INIT = 0.
 
 
 class Albedo(lland_parameters.LanduseMonthParameter):
     """Albedo [-]."""
-    NDIM, TYPE, TIME, SPAN = 2, float, None, (0, 1)
+    NDIM, TYPE, TIME, SPAN = 2, float, None, (0., 1.)
     INIT = 0.
 
 
 class SurfaceResistance(lland_parameters.LanduseMonthParameter):
     """Surface Resistance [s/m]."""
-    NDIM, TYPE, TIME, SPAN = 2, float, None, (0, None)
+    NDIM, TYPE, TIME, SPAN = 2, float, None, (0., None)
     INIT = 0.
 
 
@@ -210,7 +210,7 @@ class P1SIMax(parametertools.Parameter):
     """Schneeinterzeptionsfaktor zur Berechnung der
     Schneeinterzeptionskapazität."""
     NDIM, TYPE, TIME, SPAN = 0, float, None, (0., None)
-    INIT = 8.0
+    INIT = 8.
 
 
 class P2SIMax(parametertools.Parameter):
@@ -231,14 +231,14 @@ class P2SIRate(parametertools.Parameter):
     """Schneeinterzeptionsfaktor zur Berechnung der
     Schneeinterzeptionsrate."""
     NDIM, TYPE, TIME, SPAN = 0, float, None, (0., 1.)
-    INIT = 0.02
+    INIT = .02
 
 
 class P3SIRate(parametertools.Parameter):
     """Schneeinterzeptionsfaktor zur Berechnung der
     Schneeinterzeptionsrate."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., 0.05)
-    INIT = 0.003
+    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., .05)
+    INIT = .003
 
 
 class LAI(lland_parameters.LanduseMonthParameter):
@@ -300,14 +300,14 @@ class Turb1(parametertools.Parameter): #todo entspricht A1 in Larsim
 
 class Albedo0Snow(parametertools.Parameter):
     """Albedo von Neuschnee (albedo of fresh snow) [-]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0.0, 1.0)
+    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., 1.)
     INIT = 0.8
 
 
 class SnowAgingFactor(parametertools.Parameter):
     """Wichtungsfaktor für die Sensitivität der Albedo für die Alterung des
     Schnees (weighting factor of albedo sensitivity for snow aging) [-]."""
-    NDIM, TYPE, TIME, SPAN = 0, float, None, (0.0, 1.0)
+    NDIM, TYPE, TIME, SPAN = 0, float, None, (0., 1.)
     INIT = 0.35
 
 
@@ -346,7 +346,7 @@ class MeasuringHeightWindSpeed(parametertools.Parameter):
 
 class AngstromConstant(parametertools.MonthParameter):
     """The Ångström "a" coefficient for calculating global radiation [-]."""
-    TYPE, TIME, SPAN = float, None, (0., 1.0)
+    TYPE, TIME, SPAN = float, None, (0., 1.)
     INIT = 0.25
 
     def trim(self, lower=None, upper=None):
