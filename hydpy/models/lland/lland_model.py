@@ -2538,12 +2538,11 @@ class Calc_NetShortwaveRadiation_V1(modeltools.Method):
                 (1.-flu.actualalbedo[k])*flu.globalradiation
 
 
-class Calc_TempS_V1(modeltools.Method):
-    """Calculate the average temperature of the snow layer.
+class Return_TempS_V1(modeltools.Method):
+    """Calculate the average temperature of the snow layer and return it.
 
     Basic equation:
-      :math:`TempS =
-      \\frac{E_{snow}}{WATS \\cdotcp_{eis} + (WAeS-WATS)\\cdot cp_{wasser}}`
+      :math:`\\frac{ESnow}{WATS \\cdot CPEis + (WAeS-WATS)\\cdot CPWasser}`
 
     Example:
 
@@ -2553,16 +2552,102 @@ class Calc_TempS_V1(modeltools.Method):
         >>> from hydpy.lland import *
         >>> parameterstep('1d')
         >>> nhru(3)
+        >>> states.wats = 0.0, 0.5, 5.0
+        >>> states.waes = 0.0, 1.0, 10.0
+        >>> states.esnow = 0.0, 0.0, -0.1
+        >>> from hydpy import round_
+        >>> round_(model.return_temps_v1(0))
+        nan
+        >>> round_(model.return_temps_v1(1))
+        0.0
+        >>> round_(model.return_temps_v1(2))
+        -3.186337
+    """
+    FIXEDPARAMETERS = (
+        lland_fixed.CPWasser,
+        lland_fixed.CPEis,
+    )
+    REQUIREDSEQUENCES = (
+        lland_states.WATS,
+        lland_states.WAeS,
+        lland_states.ESnow,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model', k: int) -> float:
+        fix = model.parameters.fixed.fastaccess
+        sta = model.sequences.states.fastaccess
+        if sta.waes[k] > 0.:
+            d_ice = fix.cpeis*sta.wats[k]
+            d_water = fix.cpwasser*(sta.waes[k]-sta.wats[k])
+            return sta.esnow[k]/(d_ice+d_water)
+        return modelutils.nan
+
+
+class Return_ESnow_V1(modeltools.Method):
+    """Calculate and return the energy content of the snow layer for
+    the given bulk temperature.
+
+    Basic equation:
+      :math:`TempS \\cdot (WATS \\cdot CPEis + (WAeS-WATS)\\cdot CPWasser)`
+
+    Example:
+
+        >>> from hydpy.lland import *
+        >>> parameterstep('1d')
+        >>> nhru(3)
+        >>> states.wats = 0.0, 0.5, 5.0
+        >>> states.waes = 0.0, 1.0, 10.0
+        >>> states.esnow = 0.0, 0.0, -0.1
+        >>> from hydpy import round_
+        >>> round_(model.return_esnow_v1(0, 1.0))
+        0.0
+        >>> round_(model.return_esnow_v1(1, 0.0))
+        0.0
+        >>> round_(model.return_esnow_v1(2, -3.186337))
+        -0.1
+    """
+    FIXEDPARAMETERS = (
+        lland_fixed.CPWasser,
+        lland_fixed.CPEis,
+    )
+    REQUIREDSEQUENCES = (
+        lland_states.WATS,
+        lland_states.WAeS,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model', k: int, temps: float) -> float:
+        fix = model.parameters.fixed.fastaccess
+        sta = model.sequences.states.fastaccess
+        d_ice = fix.cpeis*sta.wats[k]
+        d_water = fix.cpwasser*(sta.waes[k]-sta.wats[k])
+        return temps*(d_ice+d_water)
+
+
+class Calc_TempS_V1(modeltools.Method):   # ToDo: outdated?
+    """Calculate the average temperature of the snow layer.
+
+    Method |Calc_TempS_V1| simply uses method |Return_TempS_V1| to
+    calculate the snow temperature of all hydrological response units.
+
+    Example:
+
+        >>> from hydpy.lland import *
+        >>> parameterstep('1d')
+        >>> nhru(3)
         >>> pwmax(2.0)
-        >>> fluxes.tkor(-1.0)
-        >>> states.wats(0.0, 0.5, 5)
-        >>> states.waes(0.0, 1.0, 10)
-        >>> states.esnow(0.0, 0.0, -0.1)
+        >>> fluxes.tkor = -1.0
+        >>> states.wats = 0.0, 0.5, 5
+        >>> states.waes = 0.0, 1.0, 10
+        >>> states.esnow = 0.0, 0.0, -0.1
         >>> model.calc_temps_v1()
         >>> aides.temps
         temps(nan, 0.0, -3.186337)
     """
-
+    SUBMETHODS = (
+        Return_TempS_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
@@ -2588,12 +2673,7 @@ class Calc_TempS_V1(modeltools.Method):
         sta = model.sequences.states.fastaccess
         aid = model.sequences.aides.fastaccess
         for k in range(con.nhru):
-            if sta.waes[k] > 0.:
-                d_ice = fix.cpeis*sta.wats[k]
-                d_water = fix.cpwasser*(sta.waes[k]-sta.wats[k])
-                aid.temps[k] = sta.esnow[k]/(d_ice+d_water)
-            else:
-                aid.temps[k] = modelutils.nan
+            aid.temps[k] = model.return_temps_v1(k)
 
 
 class Calc_TZ_V1(modeltools.Method):
@@ -2653,8 +2733,8 @@ class Calc_TZ_V1(modeltools.Method):
                     (sta.ebdn[k]-der.heatoffusion[k])/(2.*fix.z*con.cg[k])
 
 
-class Calc_WG_V1(modeltools.Method):
-    """Calculate the soil heat flux.
+class Return_WG_V1(modeltools.Method):
+    """Calculate the soil heat flux and return it.
 
     The soil heat flux depends on the temperature gradient between depth z
     and the surface.  We set the soil surface temperature to the air
@@ -2662,7 +2742,63 @@ class Calc_WG_V1(modeltools.Method):
     temperature of the snow layer.
 
     Basic equations:
-      :math:`WG = \\lambdaG \\cdot \\frac{Tz-T_{surface}}{z}`
+      :math:`\\lambdaG \\cdot \\frac{Tz-T_{surface}}{z}`
+
+    ToDo
+
+    Examples:
+
+        >>> from hydpy.lland import *
+        >>> simulationstep('1h')
+        >>> parameterstep('1d')
+        >>> nhru(2)
+        >>> fixed.lambdag.restore()
+        >>> fluxes.tz = 2.0
+        >>> fluxes.tkor = 10.0
+        >>> states.waes = 0.0, 1.0
+        >>> aides.temps = nan, -1.0
+        >>> from hydpy import round_
+        >>> round_(model.return_wg_v1(0))
+        -0.1728
+        >>> round_(model.return_wg_v1(1))
+        0.0648
+    """
+    CONTROLPARAMETERS = (
+        lland_control.NHRU,
+    )
+    FIXEDPARAMETERS = (
+        lland_fixed.Z,
+        lland_fixed.LambdaG,
+    )
+    REQUIREDSEQUENCES = (
+        lland_fluxes.TZ,
+        lland_fluxes.TKor,
+        lland_states.WAeS,
+        lland_aides.TempS,
+    )
+    RESULTSEQUENCES = (
+        lland_fluxes.WG,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model', k: int) -> float:
+        fix = model.parameters.fixed.fastaccess
+        flu = model.sequences.fluxes.fastaccess
+        sta = model.sequences.states.fastaccess
+        aid = model.sequences.aides.fastaccess
+        if sta.waes[k] > 0.:
+            d_temp = aid.temps[k]
+        else:
+            d_temp = flu.tkor[k]
+        return fix.lambdag*(flu.tz[k]-d_temp)/fix.z
+
+
+class Calc_WG_V1(modeltools.Method):
+    """Calculate the soil heat flux.
+
+    Method |Calc_WG_V1| simply uses method |Return_WG_V1| to calculate the
+    soil heat flux for all hydrological response units.
+
 
     ToDo
 
@@ -2681,6 +2817,9 @@ class Calc_WG_V1(modeltools.Method):
         >>> fluxes.wg
         wg(-0.1728, 0.0648)
     """
+    SUBMETHODS = (
+        Return_WG_V1,
+    )
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
@@ -2701,16 +2840,9 @@ class Calc_WG_V1(modeltools.Method):
     @staticmethod
     def __call__(model: 'lland.Model') -> None:
         con = model.parameters.control.fastaccess
-        fix = model.parameters.fixed.fastaccess
         flu = model.sequences.fluxes.fastaccess
-        sta = model.sequences.states.fastaccess
-        aid = model.sequences.aides.fastaccess
         for k in range(con.nhru):
-            if sta.waes[k] > 0.:
-                d_temp = aid.temps[k]
-            else:
-                d_temp = flu.tkor[k]
-            flu.wg[k] = fix.lambdag*(flu.tz[k]-d_temp)/fix.z
+            flu.wg[k] = model.return_wg_v1(k)
 
 
 class Update_EBdn_V1(modeltools.Method):
@@ -2905,6 +3037,283 @@ class Return_WSurf_V1(modeltools.Method):
         #  Vorsicht! abhängig von Schneetiefe oberste Schneeschicht (KTSchnee)
 
 
+class Return_ESnowError_V1(modeltools.Method):
+    """Calculate and return the net energy gain of the snow surface.
+
+
+    Example:
+
+        >>> from hydpy.lland import *
+        >>> simulationstep('1d')
+        >>> parameterstep()
+        >>> nhru(1)
+        >>> turb0(2.0)
+        >>> turb1(2.0)
+        >>> fratm(1.28)
+        >>> derived.seconds.update()
+        >>> inputs.relativehumidity = 60.0
+        >>> inputs.sunshineduration = 10.0
+        >>> states.waes = 12.0
+        >>> states.wats = 10.0
+        >>> fluxes.tkor = -3.0
+        >>> fluxes.windspeed10m = 3.0
+        >>> fluxes.actualvapourpressure = 0.29
+        >>> fluxes.netshortwaveradiation = 2.0
+        >>> fluxes.possiblesunshineduration = 12.0
+        >>> states.esnow = -0.1
+        >>> fluxes.tz = 0.0
+
+
+
+        >>> tempssurfaceflag(False)
+        >>> from hydpy import round_
+        >>> model.idx_hru = 0
+        >>> round_(model.return_esnowerror_v1(-0.10503956))
+        -0.0
+
+        >>> aides.temps
+        temps(-3.588201)
+        >>> fluxes.tempssurface
+        tempssurface(-3.588201)
+        >>> fluxes.saturationvapourpressuresnow
+        saturationvapourpressuresnow(0.468236)
+        >>> fluxes.actualvapourpressuresnow
+        actualvapourpressuresnow(0.280941)
+        >>> fluxes.netlongwaveradiation
+        netlongwaveradiation(8.284498)
+        >>> fluxes.netradiation
+        netradiation(-6.284498)
+        >>> fluxes.wsenssnow
+        wsenssnow(-0.406565)
+        >>> fluxes.wlatsnow
+        wlatsnow(-4.01277)
+        >>> fluxes.wsurf
+        wsurf(1.865163)
+        >>> fluxes.wg
+        wg(1.860123)
+
+        >>> states.esnow
+        esnow(-0.1)
+
+        >>> tempssurfaceflag(True)
+        >>> round_(model.return_esnowerror_v1(-0.10503956))
+        1.405507
+        >>> aides.temps
+        temps(-3.588201)
+        >>> fluxes.tempssurface
+        tempssurface(-4.652219)
+        >>> fluxes.saturationvapourpressuresnow
+        saturationvapourpressuresnow(0.432056)
+        >>> fluxes.actualvapourpressuresnow
+        actualvapourpressuresnow(0.259234)
+        >>> fluxes.netlongwaveradiation
+        netlongwaveradiation(7.878514)
+        >>> fluxes.netradiation
+        netradiation(-5.878514)
+        >>> fluxes.wsenssnow
+        wsenssnow(-1.142014)
+        >>> fluxes.wlatsnow
+        wlatsnow(-4.276844)
+        >>> fluxes.wsurf
+        wsurf(0.459656)
+        >>> fluxes.wg
+        wg(1.860123)
+        >>> states.esnow
+        esnow(-0.1)
+
+        >>> states.waes = 0.0
+        >>> round_(model.return_esnowerror_v1(-0.10503956))
+        nan
+        >>> fluxes.wsurf
+        wsurf(0.459656)
+    """
+    SUBMETHODS = (
+        # ToDo
+        Return_SaturationVapourPressure_V1,
+        Return_ActualVapourPressure_V1,
+        Return_WSensSnow_V1,
+        Return_WLatSnow_V1,
+        Return_WSurf_V1,
+        Return_NetLongwaveRadiation_V1,
+    )
+    CONTROLPARAMETERS = (
+        lland_control.NHRU,
+        lland_control.Turb0,
+        lland_control.Turb1,
+        lland_control.FrAtm,
+    )
+    DERIVEDPARAMETERS = (
+        lland_derived.Seconds,
+    )
+    REQUIREDSEQUENCES = (
+        lland_inputs.RelativeHumidity,
+        lland_states.WAeS,
+        lland_states.WATS,
+        lland_fluxes.NetShortwaveRadiation,
+        lland_fluxes.TKor,
+        lland_fluxes.WindSpeed10m,
+        lland_inputs.SunshineDuration,
+        lland_fluxes.PossibleSunshineDuration,
+        lland_logs.LoggedPossibleSunshineDuration,
+        lland_logs.LoggedSunshineDuration,
+        lland_fluxes.TZ,
+        lland_aides.TempS,
+    )
+    RESULTSEQUENCES = (
+        lland_fluxes.SaturationVapourPressureSnow,
+        lland_fluxes.ActualVapourPressureSnow,
+        lland_fluxes.WSensSnow,
+        lland_fluxes.WLatSnow,
+        lland_fluxes.NetLongwaveRadiation,
+        lland_fluxes.WSurf,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model', esnow: float) -> float:
+        flu = model.sequences.fluxes.fastaccess
+        aid = model.sequences.aides.fastaccess
+        sta = model.sequences.states.fastaccess
+        k = model.idx_hru
+        if sta.waes[k] > 0.:
+            esnow_old = sta.esnow[k]
+            sta.esnow[k] = esnow
+            aid.temps[k] = model.return_temps_v1(k)
+            sta.esnow[k] = esnow_old
+            model.return_tempssurface_v1(k)
+            flu.wg[k] = model.return_wg_v1(k)
+            return esnow_old-esnow+flu.wg[k]-flu.wsurf[k]
+        return modelutils.nan
+
+
+class Update_ESnow_V9(modeltools.Method):
+    """ToDo
+
+    Example:
+
+        >>> from hydpy.lland import *
+        >>> simulationstep('1d')
+        >>> parameterstep()
+        >>> nhru(8)
+        >>> turb0(2.0)
+        >>> turb1(2.0)
+        >>> fratm(1.28)
+        >>> derived.seconds.update()
+        >>> inputs.relativehumidity = 60.0
+        >>> inputs.sunshineduration = 10.0
+        >>> states.waes = 0.0, 120.0, 12.0, 1.2, 0.12, 0.012, 1.2e-6, 1.2e-12
+        >>> states.wats = 0.0, 100.0, 12.0, 1.0, 0.10, 0.010, 1.0e-6, 1.0e-12
+        >>> fluxes.tkor = -3.0
+        >>> fluxes.windspeed10m = 3.0
+        >>> fluxes.actualvapourpressure = 0.29
+        >>> fluxes.possiblesunshineduration = 12.0
+        >>> fluxes.netshortwaveradiation = (
+        ...     1.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0)
+        >>> states.esnow = -0.1
+        >>> fluxes.tz = 0.0
+
+
+        >>> control.tempssurfaceflag(False)
+        >>> model.update_esnow_v9()
+        >>> states.esnow
+        esnow(0.0, -0.92156, -0.090193, -0.010653, -0.001067, -0.000107, -0.0,
+              -0.0)
+        >>> aides.temps
+        temps(nan, -3.148092, -3.596224, -3.639221, -3.644405, -3.644924,
+              -3.644982, -3.644982)
+        >>> fluxes.tempssurface
+        tempssurface(nan, -3.148092, -3.596224, -3.639221, -3.644405, -3.644924,
+                     -3.644982, -3.644982)
+
+        >>> esnow = states.esnow.values.copy()
+        >>> states.esnow = -0.1
+        >>> errors = []
+        >>> for hru in range(8):
+        ...     model.idx_hru = hru
+        ...     errors.append(model.return_esnowerror_v1(esnow[hru]))
+        >>> from hydpy import print_values
+        >>> print_values(errors)
+        nan, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+
+
+        >>> control.tempssurfaceflag(True)
+        >>> model.update_esnow_v9()
+        >>> states.esnow
+        esnow(0.0, -0.444773, -0.049844, -0.00597, -0.000599, -0.00006, -0.0,
+              -0.0)
+        >>> aides.temps
+        temps(nan, -1.519365, -1.987383, -2.039381, -2.045747, -2.046385,
+              -2.046456, -2.046456)
+        >>> fluxes.tempssurface
+        tempssurface(nan, -4.140689, -4.256139, -4.268976, -4.270547, -4.270705,
+                     -4.270722, -4.270722)
+
+        >>> esnow = states.esnow.values.copy()
+        >>> states.esnow = -0.1
+        >>> errors = []
+        >>> for hru in range(8):
+        ...     model.idx_hru = hru
+        ...     errors.append(model.return_esnowerror_v1(esnow[hru]))
+        >>> print_values(errors)
+        nan, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0, -0.0
+    """
+    SUBMETHODS = (
+        Return_ESnow_V1,
+    )
+    CONTROLPARAMETERS = (
+        lland_control.NHRU,
+        lland_control.Turb0,
+        lland_control.Turb1,
+        lland_control.FrAtm,
+        lland_control.TempSSurfaceFlag,
+    )
+    DERIVEDPARAMETERS = (
+        lland_derived.Seconds,
+    )
+    REQUIREDSEQUENCES = (
+        lland_inputs.RelativeHumidity,
+        lland_inputs.SunshineDuration,
+        lland_fluxes.NetShortwaveRadiation,
+        lland_fluxes.WNied,
+        lland_fluxes.TKor,
+        lland_fluxes.WindSpeed10m,
+        lland_fluxes.PossibleSunshineDuration,
+        lland_states.WAeS,
+        lland_aides.TempS,
+    )
+    RESULTSEQUENCES = (
+        lland_fluxes.SaturationVapourPressureSnow,
+        lland_fluxes.ActualVapourPressureSnow,
+        lland_fluxes.TempSSurface,
+        lland_fluxes.WSensSnow,
+        lland_fluxes.WLatSnow,
+        lland_fluxes.NetLongwaveRadiation,
+        lland_fluxes.WSurf,
+    )
+
+    @staticmethod
+    def __call__(model: 'lland.Model') -> None:
+        aid = model.sequences.aides.fastaccess
+        con = model.parameters.control.fastaccess
+        flu = model.sequences.fluxes.fastaccess
+        sta = model.sequences.states.fastaccess
+        for k in range(con.nhru):
+            if sta.waes[k] > 0.:
+                model.idx_hru = k
+                sta.esnow[k] = model.pegasusesnow.find_x(
+                    model.return_esnow_v1(k, -30.0),
+                    model.return_esnow_v1(k, 100.0),
+                    -100.0, 100.0, 0.0, 1e-8, 10)
+            else:
+                sta.esnow[k] = 0.
+                aid.temps[k] = modelutils.nan
+                flu.tempssurface[k] = modelutils.nan
+                flu.saturationvapourpressuresnow[k] = 0.
+                flu.actualvapourpressuresnow[k] = 0.
+                flu.wsenssnow[k] = 0.
+                flu.wlatsnow[k] = 0.
+                flu.wsurf[k] = 0.
+
+
 class Return_EnergyGainSnowSurface_V1(modeltools.Method):
     """Calculate and return the net energy gain of the snow surface.
 
@@ -2937,7 +3346,7 @@ class Return_EnergyGainSnowSurface_V1(modeltools.Method):
         >>> derived.seconds(24*60*60)
         >>> inputs.relativehumidity = 60.0
         >>> inputs.sunshineduration = 10.0
-        >>> states.waes.values = 1.0
+        >>> states.waes = 1.0
         >>> fluxes.tkor = -3.0
         >>> fluxes.windspeed10m = 3.0
         >>> fluxes.actualvapourpressure = 0.29
@@ -3031,15 +3440,15 @@ class Return_EnergyGainSnowSurface_V1(modeltools.Method):
         return flu.wsurf[k]+flu.netradiation[k]-flu.wsenssnow[k]-flu.wlatsnow[k]
 
 
-class Calc_TempSSurface_V1(modeltools.Method):
-    """Determine the snow surface temperature.
+class Return_TempSSurface_V1(modeltools.Method):
+    """Determine and return the snow surface temperature.
 
-    |Calc_TempsSurface_V1| needs to determine the snow surface temperature
+    |Return_TempSSurface_V1| needs to determine the snow surface temperature
     via iteration.  Therefore, it uses the class |PegasusTempSSurface|
     which searches the root of the net energy gain of the snow surface
     defined by method |Return_EnergyGainSnowSurface_V1|.
 
-    For snow-free conditions, method |Calc_TempsSurface_V1| sets the value
+    For snow-free conditions, method |Return_TempSSurface_V1| sets the value
     of |TempSSurface| to |numpy.nan| and the values of |WSensSnow|,
     |WLatSnow|, and |WSurf| to zero.  For snow conditions, the side-effects
     discussed in the documentation on method |Return_EnergyGainSnowSurface_V1|
@@ -3061,7 +3470,7 @@ class Calc_TempSSurface_V1(modeltools.Method):
         >>> derived.seconds(24*60*60)
         >>> inputs.relativehumidity = 60.0
         >>> inputs.sunshineduration = 10.0
-        >>> states.waes.values = 0.0, 1.0, 1.0, 1.0, 1.0
+        >>> states.waes = 0.0, 1.0, 1.0, 1.0, 1.0
         >>> fluxes.tkor = -3.0
         >>> fluxes.windspeed10m = 3.0
         >>> fluxes.actualvapourpressure = 0.29
@@ -3079,7 +3488,8 @@ class Calc_TempSSurface_V1(modeltools.Method):
         snow layer:
 
         >>> control.tempssurfaceflag(True)
-        >>> model.calc_tempssurface_v1()
+        >>> for hru in range(5):
+        ...     _ = model.return_tempssurface_v1(hru)
         >>> fluxes.tempssurface
         tempssurface(nan, -4.832608, -4.259254, -16.889144, -63.201335)
 
@@ -3095,12 +3505,13 @@ class Calc_TempSSurface_V1(modeltools.Method):
 
         Through setting parameter |TempSSurfaceFlag| to |False|, we disable
         the iterative search for the correct surface temperature.  Instead,
-        method |Calc_TempsSurface_V1| simply uses the bulk temperature of
+        method |Return_TempSSurface_V1| simply uses the bulk temperature of
         the snow layer as its surface temperature and sets |WSurf| so that
         the energy gain of the snow surface is zero::
 
         >>> control.tempssurfaceflag(False)
-        >>> model.calc_tempssurface_v1()
+        >>> for hru in range(5):
+        ...     _ = model.return_tempssurface_v1(hru)
         >>> fluxes.tempssurface
         tempssurface(nan, -2.0, -2.0, -50.0, -200.0)
         >>> fluxes.wsurf
@@ -3116,7 +3527,6 @@ class Calc_TempSSurface_V1(modeltools.Method):
         nan, 0.0, 0.0, 0.0, 0.0
     """
     CONTROLPARAMETERS = (
-        lland_control.NHRU,
         lland_control.Turb0,
         lland_control.Turb1,
         lland_control.FrAtm,
@@ -3147,28 +3557,28 @@ class Calc_TempSSurface_V1(modeltools.Method):
     )
 
     @staticmethod
-    def __call__(model: 'lland.Model') -> None:
+    def __call__(model: 'lland.Model', k: int) -> float:
         aid = model.sequences.aides.fastaccess
         con = model.parameters.control.fastaccess
         flu = model.sequences.fluxes.fastaccess
         sta = model.sequences.states.fastaccess
-        for k in range(con.nhru):
-            if sta.waes[k] > 0.:
-                if con.tempssurfaceflag:
-                    model.idx_hru = k
-                    model.pegasustempssurface.find_x(
-                        -50.0, 5.0, -100.0, 100.0, 0.0, 1e-8, 10)
-                else:
-                    model.idx_hru = k
-                    flu.wsurf[k] = \
-                        -model.return_energygainsnowsurface_v1(aid.temps[k])
+        if sta.waes[k] > 0.:
+            if con.tempssurfaceflag:
+                model.idx_hru = k
+                model.pegasustempssurface.find_x(
+                    -50.0, 5.0, -100.0, 100.0, 0.0, 1e-8, 10)
             else:
-                flu.tempssurface[k] = modelutils.nan
-                flu.saturationvapourpressuresnow[k] = 0.
-                flu.actualvapourpressuresnow[k] = 0.
-                flu.wsenssnow[k] = 0.
-                flu.wlatsnow[k] = 0.
-                flu.wsurf[k] = 0.
+                model.idx_hru = k
+                flu.wsurf[k] = \
+                    -model.return_energygainsnowsurface_v1(aid.temps[k])
+        else:
+            flu.tempssurface[k] = modelutils.nan
+            flu.saturationvapourpressuresnow[k] = 0.
+            flu.actualvapourpressuresnow[k] = 0.
+            flu.wsenssnow[k] = 0.
+            flu.wlatsnow[k] = 0.
+            flu.wsurf[k] = 0.
+        return flu.tempssurface[k]
 
 
 class Calc_NetRadiation_V1(modeltools.Method):
@@ -3258,50 +3668,6 @@ class Calc_SchmPot_V1(modeltools.Method):
             flu.schmpot[k] = max((flu.wgtf[k]+flu.wnied[k])/fix.rschmelz, 0)
 
 
-class Calc_WSnow_V1(modeltools.Method):
-    """Calculate the energy balance of the snow layer according to the complete
-    energy balance (Knauf, 2006).
-
-    Basic equations:
-      :math:`W_{snow} = - W_G + W_{nied} + NetShortwaveRadiation -
-      NetLongwaveRadiation - W_{sens} - W_{Lat}`
-
-      Example:
-
-          >>> from hydpy.lland import *
-          >>> parameterstep('1d')
-          >>> nhru(2)
-          >>> fluxes.wg(4.0)
-          >>> fluxes.wsurf(3.0)
-          >>> states.waes = (0.0, 1.0)
-          >>> model.calc_wsnow_v1()
-          >>> fluxes.wsnow
-          wsnow(0.0, 1.0)
-          """
-    CONTROLPARAMETERS = (
-        lland_control.NHRU,
-    )
-    REQUIREDSEQUENCES = (
-        lland_fluxes.WSurf,
-        lland_fluxes.WG,
-        lland_states.WAeS,
-    )
-    RESULTSEQUENCES = (
-        lland_fluxes.WSnow,
-    )
-
-    @staticmethod
-    def __call__(model: 'lland.Model') -> None:
-        con = model.parameters.control.fastaccess
-        flu = model.sequences.fluxes.fastaccess
-        sta = model.sequences.states.fastaccess
-        for k in range(con.nhru):
-            if sta.waes[k] > 0.:
-                flu.wsnow[k] = flu.wg[k]-flu.wsurf[k]
-            else:
-                flu.wsnow[k] = 0.
-
-
 class Update_ESnow_V2(modeltools.Method):
     """Calculate the heat content of the snow layer.
 
@@ -3315,17 +3681,19 @@ class Update_ESnow_V2(modeltools.Method):
         >>> nhru(3)
         >>> states.waes = 0.0, 1.0, 10.0
         >>> states.esnow = 0.0, 0.0, 2.0
-        >>> fluxes.wsnow = -1.0, -1.0, 1.0
+        >>> fluxes.wg = 0.0, -1.0, 1.0
+        >>> fluxes.wsurf = 1.0, 0.0, -1.0
         >>> model.update_esnow_v2()
         >>> states.esnow
-        esnow(0.0, -1.0, 3.0)
+        esnow(0.0, -1.0, 4.0)
     """
     CONTROLPARAMETERS = (
         lland_control.NHRU,
     )
     REQUIREDSEQUENCES = (
-        lland_fluxes.WSnow,
         lland_states.WAeS,
+        lland_fluxes.WG,
+        lland_fluxes.WSurf,
     )
     UPDATEDSEQUENCES = (
         lland_states.ESnow,
@@ -3338,7 +3706,7 @@ class Update_ESnow_V2(modeltools.Method):
         flu = model.sequences.fluxes.fastaccess
         for k in range(con.nhru):
             if sta.waes[k] > 0.:
-                sta.esnow[k] += flu.wsnow[k]
+                sta.esnow[k] += flu.wg[k]-flu.wsurf[k]
             else:
                 sta.esnow[k] = 0.
 
@@ -6595,6 +6963,13 @@ class Pass_Q_V1(modeltools.Method):
         out.q[0] += der.qfactor * flu.q
 
 
+class PegasusESnow(roottools.Pegasus):
+    """Objective function of PegasesTempSSurface iteration."""   # ToDo
+    METHODS = (
+        Return_ESnowError_V1,
+    )
+
+
 class PegasusTempSSurface(roottools.Pegasus):
     """Objective function of PegasesTempSSurface iteration."""   # ToDo
     METHODS = (
@@ -6608,15 +6983,20 @@ class Model(modeltools.AdHocModel):
     RECEIVER_METHODS = ()
     ADD_METHODS = (
         Return_AdjustedWindSpeed_V1,
-        Return_PenmanMonteith_V1,
-        Return_Penman_V1,
-        Return_EnergyGainSnowSurface_V1,
-        Return_WSensSnow_V1,
-        Return_SaturationVapourPressure_V1,
         Return_ActualVapourPressure_V1,
+        Return_NetLongwaveRadiation_V1,
+        Return_Penman_V1,
+        Return_PenmanMonteith_V1,
+        Return_EnergyGainSnowSurface_V1,
+        Return_SaturationVapourPressure_V1,
+        Return_WSensSnow_V1,
         Return_WLatSnow_V1,
         Return_WSurf_V1,
-        Return_NetLongwaveRadiation_V1,
+        Return_ESnowError_V1,
+        Return_TempS_V1,
+        Return_WG_V1,
+        Return_ESnow_V1,
+        Return_TempSSurface_V1,
     )
     RUN_METHODS = (
         Calc_NKor_V1,
@@ -6673,9 +7053,8 @@ class Model(modeltools.AdHocModel):
         Calc_EvB_V1,
         Calc_EvB_V2,
         Update_EBdn_V1,
-        Calc_TempSSurface_V1,
+        Update_ESnow_V9,
         Calc_SchmPot_V1,
-        Calc_WSnow_V1,
         Update_ESnow_V2,
         Calc_SchmPot_V2,
         Calc_GefrPot_V1,
@@ -6710,6 +7089,7 @@ class Model(modeltools.AdHocModel):
     )
     SENDER_METHODS = ()
     SUBMODELS = (
+        PegasusESnow,
         PegasusTempSSurface,
     )
     INDICES = (
