@@ -2318,8 +2318,9 @@ def prepare_io_example_1() -> tuple[devicetools.Nodes, devicetools.Elements]:
     >>> bowa3.series[1, 2] = -999.0
     >>> assert not numpy.all(bowa3.series == bowa3.testarray)
     """
-    from hydpy.models import hland  # pylint: disable=import-outside-toplevel
-    from hydpy.models import lland  # pylint: disable=import-outside-toplevel
+    # pylint: disable=import-outside-toplevel
+    from hydpy.models.lland import lland_constants
+    from hydpy.models.hland import hland_constants
 
     TestIO.clear()
     devicetools.Node.clear_all()
@@ -2356,7 +2357,7 @@ def prepare_io_example_1() -> tuple[devicetools.Nodes, devicetools.Elements]:
     control3.ft(1.0)
     control3.fhru(1.0)
     control3.gh(100.0)
-    control3.lnk(lland.ACKER)
+    control3.lnk(lland_constants.ACKER)
     control3.measuringheightwindspeed(10.0)
     control3.lai(3.0)
     control3.wmax(300.0)
@@ -2366,12 +2367,12 @@ def prepare_io_example_1() -> tuple[devicetools.Nodes, devicetools.Elements]:
     for idx, model in enumerate(models_lland):
         parameters = model.parameters
         parameters.control.nhru(idx + 1)
-        parameters.control.lnk(lland.ACKER)
+        parameters.control.lnk(lland_constants.ACKER)
         parameters.derived.absfhru(10.0)
     control4 = element4.model.parameters.control
     control4.nmbzones(3)
     control4.sclass(2)
-    control4.zonetype(hland.FIELD)
+    control4.zonetype(hland_constants.FIELD)
     control4.zonearea.values = 10.0
 
     with hydpy.pub.options.printprogress(False):
