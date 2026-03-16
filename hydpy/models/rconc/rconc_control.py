@@ -1,6 +1,7 @@
 # pylint: disable=missing-module-docstring
 
 from __future__ import annotations
+import math
 
 import numpy
 
@@ -345,16 +346,16 @@ following error occurred: Wrong arguments for option 'gr_uh2'.
             # parameter set.  Time to get rid of it...
             if (full % 1.0) < 1e-4:
                 full //= 1.0
-            full_f = int(numpy.floor(full))
-            full_c = int(numpy.ceil(full))
+            full_f = int(math.floor(full))
+            full_c = int(math.ceil(full))
             if not tp:
                 peak = full / 2.0
             else:
                 if tp > tb:
                     raise ValueError("Parameter 'tp' must not be greater than 'tb'.")
                 peak = tp
-            peak_f = int(numpy.floor(peak))
-            peak_c = int(numpy.ceil(peak))
+            peak_f = int(math.floor(peak))
+            peak_c = int(math.ceil(peak))
             # Calculate the triangle ordinate(s)...
             self.shape = full_c
             uh = self.values.copy()
@@ -417,7 +418,7 @@ following error occurred: Wrong arguments for option 'gr_uh2'.
         if left:
             ts = numpy.arange(1.0, x4)
         else:
-            ts = numpy.arange(2.0 * x4 - numpy.ceil(x4), 0.0, -1.0)[::-1]
+            ts = numpy.arange(2.0 * x4 - math.ceil(x4), 0.0, -1.0)[::-1]
         totals = numpy.empty(len(ts) + 2, dtype=config.NP_FLOAT)
         totals[1:-1] = (ts / x4) ** beta
         totals[0], totals[-1] = 0.0, 1.0

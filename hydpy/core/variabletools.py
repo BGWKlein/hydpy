@@ -11,6 +11,7 @@ import contextlib
 import copy
 import functools
 import inspect
+import math
 import warnings
 
 import numpy
@@ -368,11 +369,11 @@ is `str`.
 
 
 def _trim_float_0d(self: Variable, lower: float | None, upper: float | None) -> bool:
-    if numpy.isnan(self.value):
+    if math.isnan(self.value):
         return False
-    if (lower is None) or numpy.isnan(lower):
+    if (lower is None) or math.isnan(lower):
         lower = -numpy.inf
-    if (upper is None) or numpy.isnan(upper):
+    if (upper is None) or math.isnan(upper):
         upper = numpy.inf
     if self < lower:
         old = self.value
@@ -465,13 +466,13 @@ def get_tolerance(values):
     0.0
     >>> from hydpy import round_
     >>> round_(get_tolerance(
-    ...     numpy.array([1.0, numpy.inf, 2.0, -numpy.inf])), 16)
+    ...     numpy.asarray([1.0, numpy.inf, 2.0, -numpy.inf])), 16)
     0.000000000000001, 0.0, 0.000000000000002, 0.0
     """
     tolerance = numpy.abs(values * 1e-15)
     if hasattr(tolerance, "__setitem__"):
         tolerance[numpy.isinf(tolerance)] = 0.0
-    elif numpy.isinf(tolerance):
+    elif math.isinf(tolerance):
         tolerance = 0.0
     return tolerance
 
@@ -1641,10 +1642,10 @@ var([[1.0, nan, 1.0], [1.0, nan, 1.0]]).
         valueready = self._valueready
         try:
             self._valueready = True
-            nmbnan: int = numpy.sum(numpy.isnan(numpy.array(self.value)[self.mask]))
+            nmbnan: int = numpy.sum(numpy.isnan(numpy.asarray(self.value)[self.mask]))
         finally:
             self._valueready = valueready
-        if nmbnan and ((self.INIT is None) or ~numpy.isnan(self.INIT)):
+        if nmbnan and ((self.INIT is None) or not math.isnan(self.INIT)):
             text = "value has" if nmbnan == 1 else "values have"
             raise RuntimeError(
                 f"For variable {objecttools.devicephrase(self)}, {nmbnan} required "
@@ -1738,7 +1739,7 @@ its values to a 1-dimensional vector.
         >>> SoilMoisture.NDIM = 1
         >>> import numpy
         >>> SoilMoisture.shape = (3,)
-        >>> SoilMoisture.value = numpy.array([200.0, 400.0, 500.0])
+        >>> SoilMoisture.value = numpy.asarray([200.0, 400.0, 500.0])
         >>> sm.average_values()
         Traceback (most recent call last):
         ...
@@ -1754,7 +1755,7 @@ any weighting coefficients.
         ...     NDIM = 1
         ...     TYPE = float
         ...     shape = (3,)
-        ...     value = numpy.array([1.0, 1.0, 2.0])
+        ...     value = numpy.asarray([1.0, 1.0, 2.0])
         ...     initinfo = None
         ...     _CLS_FASTACCESS_PYTHON = FastAccess
         >>> area = Area(None)
@@ -2099,14 +2100,14 @@ has been determined, which is not a submask of `Soil([ True,  True, False])`.
         try:
             return int(result)
         except TypeError:
-            return numpy.array(result, dtype=config.NP_INT)
+            return numpy.asarray(result, dtype=config.NP_INT)
 
     def __ceil__(self):
         result = numpy.ceil(self.value)
         try:
             return int(result)
         except TypeError:
-            return numpy.array(result, dtype=config.NP_INT)
+            return numpy.asarray(result, dtype=config.NP_INT)
 
     def _compare(
         self,
@@ -2118,7 +2119,7 @@ has been determined, which is not a submask of `Soil([ True,  True, False])`.
             v1 = self.value
             v2 = other.value if isinstance(other, Variable) else numpy.asarray(other)
             if self.NDIM == 0:
-                if numpy.isnan(v1) and bool(numpy.isnan(v2)):
+                if math.isnan(v1) and bool(math.isnan(v2)):
                     if callingfunc in ("le", "eq", "ge"):
                         return True
                     return False

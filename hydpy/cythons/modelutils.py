@@ -920,7 +920,7 @@ class PyxWriter:
                 and not inspect.isclass(member)
                 and isinstance(member, CHECKABLE_TYPES)
             ):
-                ndim = numpy.array(member).ndim
+                ndim = numpy.asarray(member).ndim
                 ctype = TYPE2STR[type(member)] + NDIM2STR[ndim]
                 both(0, f"cdef public {ctype} {name} = {member}")
 
@@ -3046,12 +3046,12 @@ def exp(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import exp
     >>> from unittest import mock
-    >>> with mock.patch("numpy.exp") as func:
+    >>> with mock.patch("math.exp") as func:
     ...     _ = exp(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.exp(double)
+    return math.exp(double)
 
 
 def log(double: float) -> float:
@@ -3060,12 +3060,12 @@ def log(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import log
     >>> from unittest import mock
-    >>> with mock.patch("numpy.log") as func:
+    >>> with mock.patch("math.log") as func:
     ...     _ = log(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.log(double)
+    return math.log(double)
 
 
 def fabs(double: float) -> float:
@@ -3088,12 +3088,12 @@ def sin(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import sin
     >>> from unittest import mock
-    >>> with mock.patch("numpy.sin") as func:
+    >>> with mock.patch("math.sin") as func:
     ...     _ = sin(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.sin(double)
+    return math.sin(double)
 
 
 def cos(double: float) -> float:
@@ -3102,12 +3102,12 @@ def cos(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import cos
     >>> from unittest import mock
-    >>> with mock.patch("numpy.cos") as func:
+    >>> with mock.patch("math.cos") as func:
     ...     _ = cos(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.cos(double)
+    return math.cos(double)
 
 
 def tan(double: float) -> float:
@@ -3116,12 +3116,12 @@ def tan(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import tan
     >>> from unittest import mock
-    >>> with mock.patch("numpy.tan") as func:
+    >>> with mock.patch("math.tan") as func:
     ...     _ = tan(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.tan(double)
+    return math.tan(double)
 
 
 def asin(double: float) -> float:
@@ -3130,12 +3130,12 @@ def asin(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import asin
     >>> from unittest import mock
-    >>> with mock.patch("numpy.arcsin") as func:
+    >>> with mock.patch("math.asin") as func:
     ...     _ = asin(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.arcsin(double)
+    return math.asin(double)
 
 
 def acos(double: float) -> float:
@@ -3144,12 +3144,12 @@ def acos(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import acos
     >>> from unittest import mock
-    >>> with mock.patch("numpy.arccos") as func:
+    >>> with mock.patch("math.acos") as func:
     ...     _ = acos(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.arccos(double)
+    return math.acos(double)
 
 
 def atan(double: float) -> float:
@@ -3158,12 +3158,12 @@ def atan(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import atan
     >>> from unittest import mock
-    >>> with mock.patch("numpy.arctan") as func:
+    >>> with mock.patch("math.atan") as func:
     ...     _ = atan(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.arctan(double)
+    return math.atan(double)
 
 
 def tanh(double: float) -> float:
@@ -3172,12 +3172,12 @@ def tanh(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import tanh
     >>> from unittest import mock
-    >>> with mock.patch('numpy.tanh') as func:
+    >>> with mock.patch('math.tanh') as func:
     ...     _ = tanh(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.tanh(double)
+    return math.tanh(double)
 
 
 def isnan(double: float) -> float:
@@ -3186,12 +3186,12 @@ def isnan(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import isnan
     >>> from unittest import mock
-    >>> with mock.patch("numpy.isnan") as func:
+    >>> with mock.patch("math.isnan") as func:
     ...     _ = isnan(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.isnan(double)
+    return math.isnan(double)
 
 
 def isinf(double: float) -> float:
@@ -3200,12 +3200,12 @@ def isinf(double: float) -> float:
 
     >>> from hydpy.cythons.modelutils import isnan
     >>> from unittest import mock
-    >>> with mock.patch("numpy.isinf") as func:
+    >>> with mock.patch("math.isinf") as func:
     ...     _ = isinf(123.4)
     >>> func.call_args
     call(123.4)
     """
-    return numpy.isinf(double)
+    return math.isinf(double)
 
 
 inf: Final = _inf

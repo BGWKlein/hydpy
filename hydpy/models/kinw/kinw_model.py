@@ -3631,5 +3631,5 @@ class BaseModelProfile(modeltools.ELSModel):
         |kinw_model.BaseModelProfile.calculate_qgvector| for an example.
         """
         con = self.parameters.control
-        ags = numpy.array(self.calculate_agvector(hvector))
+        ags = numpy.asarray(self.calculate_agvector(hvector))
         return tuple(con.laen / con.gts * 1000.0 * ags / 1e6)

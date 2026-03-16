@@ -3,6 +3,7 @@
 """
 
 from __future__ import annotations
+import math
 import warnings
 
 import numpy
@@ -625,7 +626,7 @@ a positional nor a keyword argument is given.
         """
         rhot0 = float(kwargs.pop("rhot0", numpy.nan))
         rhodkrit = float(kwargs.pop("rhodkrit", numpy.nan))
-        missing = int(numpy.isnan(rhot0)) + int(numpy.isnan(rhodkrit))
+        missing = int(math.isnan(rhot0)) + int(math.isnan(rhodkrit))
         try:
             super().__call__(*args, **kwargs)
             return
@@ -920,7 +921,7 @@ Keyword `rdmin` is not among the available model constants.
         except TypeError:
             if (r := kwargs.get("r_dmin")) is not None:
                 hours = hydpy.pub.timegrids.init.stepsize.hours
-                self.value = 0.001008 * hours * numpy.array(r)
+                self.value = 0.001008 * hours * numpy.asarray(r)
                 self.trim()
             else:
                 objecttools.augment_excmessage()
@@ -998,7 +999,7 @@ Keyword `rdmax` is not among the available model constants.
                 self.value = (
                     0.1008
                     * hydpy.pub.timegrids.init.stepsize.hours
-                    * numpy.array(r, config.NP_FLOAT)
+                    * numpy.asarray(r, config.NP_FLOAT)
                 )
                 self.trim()
             else:

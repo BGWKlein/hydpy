@@ -712,7 +712,7 @@ class _PreserveStrings:
     For scalar |numpy.ndarray| objects, |repr_| returns its item's string
     representation:
 
-    >>> repr_(numpy.array(1.0/3.0))
+    >>> repr_(numpy.asarray(1.0/3.0))
     '0.333333'
 
     On all types not mentioned above, the usual |repr| function is applied, e.g.:
@@ -859,7 +859,7 @@ precision of |numpy.float16|.
 
 For scalar |numpy.ndarray| objects, |repr_| returns its item's string representation:
 
->>> repr_(numpy.array(1.0/3.0))
+>>> repr_(numpy.asarray(1.0/3.0))
 '0.333333'
 
 On all types not mentioned above, the usual |repr| function is applied, e.g.:

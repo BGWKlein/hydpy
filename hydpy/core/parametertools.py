@@ -7,6 +7,7 @@ import contextlib
 import copy
 import inspect
 import itertools
+import math
 import textwrap
 import types
 import warnings
@@ -1315,7 +1316,7 @@ broadcast input array from shape (2,) into shape (2,3)
         elif args:
             if len(args) == 1:
                 args = args[0]
-            self.values = self.apply_timefactor(numpy.array(args))
+            self.values = self.apply_timefactor(numpy.asarray(args))
         else:
             self._raise_wrong_kwargs_error()
         self.trim()
@@ -1742,7 +1743,7 @@ parameter and a simulation time step size first.
         >>> test(3.0, 3.0, 3.0, numpy.nan)
         >>> test
         test(3.0, 3.0, 3.0, nan)
-        >>> Test.mask = numpy.array([True, True, True, False])
+        >>> Test.mask = numpy.asarray([True, True, True, False])
         >>> test
         test(3.0)
 
@@ -1794,8 +1795,8 @@ parameter and a simulation time step size first.
         test([[3, 3, -999999],
               [3, 3, 3]])
 
-        >>> Test.mask = numpy.array([[True, True, False],
-        ...                          [True, True, True]])
+        >>> Test.mask = numpy.asarray([[True, True, False],
+        ...                            [True, True, True]])
         >>> test
         test(3)
 
@@ -1812,7 +1813,7 @@ parameter and a simulation time step size first.
         except BaseException:
             unique = numpy.unique(self.values)
         if sum(numpy.isnan(unique)) == len(unique.flatten()):
-            unique = numpy.array([numpy.nan])
+            unique = numpy.asarray([numpy.nan])
         else:
             unique = self.revert_timefactor(unique)
         if len(unique) == 1:
@@ -3040,8 +3041,8 @@ first.  However, in complete HydPy projects this stepsize is indirectly defined 
                 f"projects this stepsize is indirectly defined via "
                 f"`pub.timegrids.stepsize` automatically."
             )
-        shape_[0] = int(numpy.ceil(timetools.Period("366d") / simulationstep))
-        shape_[0] = int(numpy.ceil(round(shape_[0], 10)))
+        shape_[0] = int(math.ceil(timetools.Period("366d") / simulationstep))
+        shape_[0] = int(math.ceil(round(shape_[0], 10)))
         proxy = super(__class__, type(self))  # type: ignore[name-defined]
         proxy.shape.fset(self, tuple(shape_))  # type: ignore[attr-defined]
 

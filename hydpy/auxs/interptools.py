@@ -13,6 +13,7 @@ the related methods in the Cython extension module |interputils|.
 from __future__ import annotations
 import abc
 import itertools
+import math
 
 import numpy
 
@@ -925,7 +926,7 @@ interpolation algorithm object, but for parameter `seasonalinterpolator` of elem
     def _prepare_shape(self) -> None:
         """Private on purpose."""
         nmb_weights = timetools.Period("366d") / hydpy.pub.options.simulationstep
-        nmb_weights = int(numpy.ceil(round(nmb_weights, 10)))
+        nmb_weights = int(math.ceil(round(nmb_weights, 10)))
         shape = (nmb_weights, self._seasonalinterpolator.nmb_algorithms)
         getattr(self.fastaccess, self.name).ratios = numpy.zeros(
             shape, dtype=config.NP_FLOAT

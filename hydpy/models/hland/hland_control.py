@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 import functools
+import math
 import warnings
 
 import numpy
@@ -1311,7 +1312,7 @@ must be defined beforehand.
                     exceptiontools.getattr_(self.subpars.alpha, "value", numpy.nan),
                 )
             )
-            if numpy.isnan(alpha):
+            if math.isnan(alpha):
                 raise RuntimeError(
                     f"For the alternative calculation of parameter "
                     f"{objecttools.elementphrase(self)}, either the "

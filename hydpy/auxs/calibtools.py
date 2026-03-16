@@ -2881,9 +2881,9 @@ parameterstep="1d"
         ]
         if self.keyword is not None:
             arguments.append(f'keyword="{self.keyword}"')
-        if not numpy.isinf(self.lower):
+        if not math.isinf(self.lower):
             arguments.append(f"lower={objecttools.repr_(self.lower)}")
-        if not numpy.isinf(self.upper):
+        if not math.isinf(self.upper):
             arguments.append(f"upper={objecttools.repr_(self.upper)}")
         if self.parameterstep is not None:
             arguments.append(f'parameterstep="{self.parameterstep}"')

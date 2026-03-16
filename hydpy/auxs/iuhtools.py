@@ -224,7 +224,7 @@ class IUH(metaclass=MetaIUH):
             sum_responses += self.dt_response * response
             if (sum_responses > 0.9) and (response < self.smallest_response):
                 break
-        return numpy.array(delays), numpy.array(responses)
+        return numpy.asarray(delays), numpy.asarray(responses)
 
     def plot(self, threshold: float | None = None, **kwargs) -> None:
         """Plot the instanteneous unit hydrograph.
@@ -503,8 +503,8 @@ class LinearStorageCascade(IUH):
         """Determine the values of the secondary parameters |LinearStorageCascade.c|,
         |LinearStorageCascade.log_c|, and |LinearStorageCascade.log_k|."""
         self.c = 1.0 / (self.k * special.gamma(self.n))
-        self.log_c = -numpy.log(self.k) - special.gammaln(self.n)
-        self.log_k = numpy.log(self.k)
+        self.log_c = -math.log(self.k) - special.gammaln(self.n)
+        self.log_k = math.log(self.k)
 
     @overload
     def __call__(self, t: float) -> float: ...

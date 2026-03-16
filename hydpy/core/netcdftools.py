@@ -242,6 +242,7 @@ import collections
 import functools
 import contextlib
 import itertools
+import math
 import os
 import time
 import warnings
@@ -725,7 +726,7 @@ to the NetCDF file `test.nc`, the following error occurred: ...
     >>> create_variable(ncfile, "var1", "f8", ("dim1",))
     >>> import numpy
     >>> from hydpy import print_vector
-    >>> print_vector(numpy.array(ncfile["var1"][:]))
+    >>> print_vector(numpy.asarray(ncfile["var1"][:]))
     nan, nan, nan, nan, nan
 
     >>> ncfile.close()
@@ -1094,7 +1095,7 @@ length of the second dimension is one, but its name is `realisation` instead of 
     else:
         maskedarray = variable[:]
     fillvalue_ = getattr(variable, "_FillValue", numpy.nan)
-    if not numpy.isnan(fillvalue_):
+    if not math.isnan(fillvalue_):
         maskedarray[maskedarray.mask] = numpy.nan
     return cast(NDArrayFloat, maskedarray.data)
 
@@ -2067,21 +2068,21 @@ class NetCDFVariableAggregated(MixinVariableWriter, NetCDFVariable):
     >>> import numpy
     >>> from hydpy import print_matrix
     >>> with TestIO(), netcdf4.Dataset("nied.nc", "r") as ncfile:
-    ...     print_matrix(numpy.array(ncfile["nied"][:]))
+    ...     print_matrix(numpy.asarray(ncfile["nied"][:]))
     | 0.0, 4.0 |
     | 1.0, 5.0 |
     | 2.0, 6.0 |
     | 3.0, 7.0 |
 
     >>> with TestIO(), netcdf4.Dataset("nkor.nc", "r") as ncfile:
-    ...     print_matrix(numpy.array(ncfile["nkor"][:]))
+    ...     print_matrix(numpy.asarray(ncfile["nkor"][:]))
     | 12.0, 16.5 |
     | 13.0, 18.5 |
     | 14.0, 20.5 |
     | 15.0, 22.5 |
 
     >>> with TestIO(), netcdf4.Dataset("sp.nc", "r") as ncfile:
-    ...     print_matrix(numpy.array(ncfile["sp"][:]))
+    ...     print_matrix(numpy.asarray(ncfile["sp"][:]))
     | 70.5 |
     | 76.5 |
     | 82.5 |

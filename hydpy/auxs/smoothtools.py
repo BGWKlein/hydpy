@@ -25,6 +25,7 @@ them computationally efficient by using Cython (see the extension module
 |smoothutils|.
 """
 
+import math
 import os
 
 # from scipy but not optional due to using interp1d during module initialisation:
@@ -73,7 +74,7 @@ def calc_smoothpar_logistic1(metapar):
     >>> round_(calc_smoothpar_logistic1(-1.0))
     0.0
     """
-    return numpy.clip(metapar / numpy.log(99.0), 0.0, numpy.inf)
+    return numpy.clip(metapar / math.log(99.0), 0.0, numpy.inf)
 
 
 def _error_smoothpar_logistic2(par, metapar):

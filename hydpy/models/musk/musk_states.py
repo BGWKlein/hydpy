@@ -51,7 +51,7 @@ class Discharge(musk_sequences.StateSequence1D):
         """
         nmbsegments = self.subseqs.seqs.model.parameters.control.nmbsegments.value
         if nmbsegments == 0:
-            return numpy.array([1.0], dtype=config.NP_FLOAT)
+            return numpy.asarray([1.0], dtype=config.NP_FLOAT)
         weights = numpy.ones(nmbsegments + 1, dtype=config.NP_FLOAT)
         weights[1:-1] += 1.0
         return weights / numpy.sum(weights)

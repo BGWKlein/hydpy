@@ -301,7 +301,7 @@ the same threshold value(s) twice.
     @property
     def thresholds(self) -> VectorFloat:
         """Threshold values of the response functions."""
-        return numpy.array(
+        return numpy.asarray(
             sorted(self._key2float(key) for key in self._coefs), dtype=config.NP_FLOAT
         )
 

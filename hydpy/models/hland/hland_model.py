@@ -738,11 +738,11 @@ class Calc_SPG_WCG_SP_WC_V1(modeltools.Method):
         ...     sp_new = states.sp.average_values()
         ...     sp_delta_l = fluxes.spl.average_values()
         ...     sp_delta_g = fluxes.spg.average_values()
-        ...     sp_old_array = numpy.array(6 * [sp_old] + [0.0])
+        ...     sp_old_array = numpy.asarray(6 * [sp_old] + [0.0])
         ...     wc_new = states.wc.average_values()
         ...     wc_delta_l = fluxes.wcl.average_values()
         ...     wc_delta_g = fluxes.wcg.average_values()
-        ...     wc_old_array = numpy.array(6 * [wc_old] + [0.0])
+        ...     wc_old_array = numpy.asarray(6 * [wc_old] + [0.0])
         ...     errors = [sp_old + sp_delta_l - sp_new,
         ...               sp_delta_l - sp_delta_g,
         ...               check_vector(sp_old_array + fluxes.spg - states.sp),

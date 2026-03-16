@@ -817,7 +817,7 @@ far.
             i0 = i - 1 if i > 0 else None
             i1 = i + n - 1
             a[i] = values[i1:i0:-1]
-        return numpy.array(a)
+        return numpy.asarray(a)
 
     @staticmethod
     def get_b(values, n):
@@ -825,7 +825,7 @@ far.
         a form suitable for the least squares approach applied in method
         |ARMA.update_ar_coefs|.
         """
-        return numpy.array(values[n:])
+        return numpy.asarray(values[n:])
 
     def update_ma_coefs(self) -> None:
         """Determine the MA coefficients.
@@ -894,7 +894,7 @@ far.
                     value += ar_coef * values[zdx]
             values.append(value)
             sum_values += value
-        return numpy.array(values)
+        return numpy.asarray(values)
 
     @property
     def moments(self) -> tuple[float, float]:

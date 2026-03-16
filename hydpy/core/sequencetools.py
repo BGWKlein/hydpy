@@ -6,6 +6,7 @@ import abc
 import copy
 import dataclasses
 import enum
+import math
 import os
 import sys
 import types
@@ -350,7 +351,7 @@ class FastAccessNodeSequence(FastAccessIOSequence):
         |numpy.nan|."""
         # pylint: disable=unused-argument
         # required for consistincy with the other reset methods.
-        if numpy.isnan(self.obs[0]):
+        if math.isnan(self.obs[0]):
             self._reset_obsdata = True
             self.obs[0] = self.sim[0]
 
@@ -2072,7 +2073,7 @@ during a simulation run is not supported but tried for sequence `t` of element \
         )
 
     def __set_array(self, values):
-        values = numpy.array(values, dtype=config.NP_FLOAT)
+        values = numpy.asarray(values, dtype=config.NP_FLOAT)
         self.__hydpy__set_fastaccessattribute__("array", values)
 
     @property
@@ -2649,7 +2650,7 @@ its series to a 2-dimensional matrix.
         >>> sm.__hydpy__connect_variable2subgroup__()
         >>> sm.prepare_series()
         >>> import numpy
-        >>> sm.series = numpy.array([190.0, 200.0, 210.0])
+        >>> sm.series = numpy.asarray([190.0, 200.0, 210.0])
         >>> sm.average_series()
         InfoArray([190., 200., 210.])
 
@@ -2667,7 +2668,7 @@ its series to a 2-dimensional matrix.
         ...     NDIM = 1
         ...     TYPE = float
         ...     shape = (3,)
-        ...     value = numpy.array([1.0, 1.0, 2.0])
+        ...     value = numpy.asarray([1.0, 1.0, 2.0])
         >>> area = Area(None)
         >>> SoilMoisture.refweights = property(lambda self: area)
         >>> sm.average_series()

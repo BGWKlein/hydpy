@@ -355,7 +355,7 @@ class Array:
     """Assures that attributes are |numpy.ndarray| objects."""
 
     def __setattr__(self, name: str, value: NDArrayFloat) -> None:
-        object.__setattr__(self, name, numpy.array(value))
+        object.__setattr__(self, name, numpy.asarray(value))
 
 
 class ArrayDescriptor:
@@ -1477,14 +1477,14 @@ class NumericalDifferentiator:
 
     __NMBNODES = 3
     __XSHIFTS = {
-        "forward": numpy.array([0.0, 1.0, 2.0]),
-        "backward": numpy.array([-2.0, -1.0, 0.0]),
-        "central": numpy.array([-1.0, 0.0, 1.0]),
+        "forward": numpy.asarray([0.0, 1.0, 2.0]),
+        "backward": numpy.asarray([-2.0, -1.0, 0.0]),
+        "central": numpy.asarray([-1.0, 0.0, 1.0]),
     }
     __YCOEFFS = {
-        "forward": numpy.array([-3.0, 4.0, -1.0]) / 2.0,
-        "backward": numpy.array([1.0, -4.0, 3]) / 2.0,
-        "central": numpy.array([-1.0, 0.0, 1]) / 2.0,
+        "forward": numpy.asarray([-3.0, 4.0, -1.0]) / 2.0,
+        "backward": numpy.asarray([1.0, -4.0, 3]) / 2.0,
+        "central": numpy.asarray([-1.0, 0.0, 1]) / 2.0,
     }
 
     def __init__(
