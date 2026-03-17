@@ -1576,17 +1576,3 @@ class Gamma(parametertools.Parameter):
     NDIM: Final[Literal[0]] = 0
     TYPE: Final = float
     SPAN = (0.0, None)
-
-
-class MaxBaz(parametertools.Parameter):
-    """Base length of the triangle unit hydrograph [T]."""
-
-    NDIM: Final[Literal[0]] = 0
-    TYPE: Final = float
-    TIME = False
-    SPAN = (0.0, None)
-
-
-K0.CONTROLPARAMETERS = (K1,)
-K1.CONTROLPARAMETERS = (K0, K2)
-K2.CONTROLPARAMETERS = (K1, K3)

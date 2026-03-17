@@ -2056,8 +2056,8 @@ needed to be trimmed.  The old and the new value(s) are `1.0, ..., 1.0` and `0.0
         content of the snow layer (|hland_states.SP|) and the relative water-holding
         capacity (|hland_control.WHC|).  Due to this restriction, problems can occur.
         To give an example, we set |hland_control.WHC| to zero temporarily, apply the
-        memorised conditions, and finally reset the original values of |
-        hland_control.WHC|:
+        memorised conditions, and finally reset the original values of
+        |hland_control.WHC|:
 
         >>> for element in hp.elements.catchment:
         ...     element.whc = element.model.parameters.control.whc.values
