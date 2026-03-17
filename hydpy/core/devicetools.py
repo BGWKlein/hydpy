@@ -1707,9 +1707,9 @@ class `Elements` is deprecated.  Use method `prepare_models` instead.
 
     @conditions.setter
     def conditions(self, conditions: Conditions) -> None:
-        for name, subconditions in conditions.items():
-            element = getattr(self, name)
-            element.model.conditions = subconditions
+        for element in self:
+            if (subconditions := conditions.get(element.name)) is not None:
+                element.model.conditions = subconditions
 
     @printtools.print_progress
     def prepare_allseries(self, allocate_ram: bool = True, jit: bool = False) -> None:
