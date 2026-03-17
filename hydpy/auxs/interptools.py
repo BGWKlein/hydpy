@@ -334,7 +334,12 @@ class SimpleInterpolator(BaseInterpolator):
 
     @property
     def shape(self) -> ShapeHookGet:
-        """This property exists for type consistency; we might remove it later."""
+        """This property exists for type consistency; we might remove it later.
+
+        >>> from hydpy.auxs.interptools import SimpleInterpolator
+        >>> SimpleInterpolator(None).shape
+        ()
+        """
         return ()
 
     @property
