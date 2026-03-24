@@ -434,10 +434,10 @@ def _trim_int_0d(self: Variable, lower: int | None, upper: int | None) -> bool:
 def _trim_int_nd(self: Variable, lower: TrimHook, upper: TrimHook) -> bool:
     if lower is None:
         lower = INT_NAN
-    lower = numpy.full(self.shape, lower, dtype=config.NP_INT)
+    lower = cast(NDArrayFloat, numpy.full(self.shape, lower, dtype=config.NP_INT))
     if upper is None:
         upper = -INT_NAN
-    upper = numpy.full(self.shape, upper, dtype=config.NP_INT)
+    upper = cast(NDArrayFloat, numpy.full(self.shape, upper, dtype=config.NP_INT))
     upper[upper == INT_NAN] = -INT_NAN
     idxs = numpy.where(self.values == INT_NAN)
     try:

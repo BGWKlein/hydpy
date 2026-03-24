@@ -77,16 +77,29 @@ Float_co = TypeVar("Float_co", covariant=True)
 Float1 = TypeVar("Float1", bound=float)
 Float2 = TypeVar("Float2", bound=float)
 
+Scalar = TypeVar(
+    "Scalar",
+    numpy.dtype[numpy.float64],
+    numpy.dtype[numpy.int64],
+    numpy.dtype[numpy.bool_],
+    numpy.dtype[numpy.generic],
+    numpy.dtype[numpy.bytes_],
+)
+
+NDVector: TypeAlias = numpy.ndarray[tuple[int], Scalar]
+NDMatrix: TypeAlias = numpy.ndarray[tuple[int, int], Scalar]
+NDTensor: TypeAlias = numpy.ndarray[tuple[int, int, int], Scalar]
+
 NDArrayObject: TypeAlias = NDArray[numpy.generic]
 NDArrayFloat: TypeAlias = NDArray[numpy.float64]
 NDArrayInt: TypeAlias = NDArray[numpy.int64]
 NDArrayBool: TypeAlias = NDArray[numpy.bool_]
 
-Vector: TypeAlias = NDArray[T_inv]
-VectorObject: TypeAlias = NDArray[numpy.generic]
-VectorFloat: TypeAlias = NDArray[numpy.float64]
-VectorInt: TypeAlias = NDArray[numpy.int64]
-VectorBool: TypeAlias = NDArray[numpy.bool_]
+Vector: TypeAlias = NDVector[T_inv]
+VectorObject: TypeAlias = NDVector[numpy.dtype[numpy.generic]]
+VectorFloat: TypeAlias = NDVector[numpy.dtype[numpy.float64]]
+VectorInt: TypeAlias = NDVector[numpy.dtype[numpy.int64]]
+VectorBool: TypeAlias = NDVector[numpy.dtype[numpy.bool_]]
 VectorInput: TypeAlias = Union[Sequence[T_inv], Vector[T_inv]]
 VectorInputObject: TypeAlias = Union[Sequence[object], VectorObject]
 VectorInputFloat: TypeAlias = Union[Sequence[float], VectorFloat]
@@ -97,12 +110,12 @@ VectorInputCompleteFloat: TypeAlias = Union[float, VectorInputFloat]
 VectorInputCompleteInt: TypeAlias = Union[int, VectorInputInt]
 VectorInputCompleteBool: TypeAlias = Union[bool, VectorInputBool]
 
-Matrix: TypeAlias = NDArray[T_inv]
-MatrixObject: TypeAlias = NDArray[numpy.generic]
-MatrixFloat: TypeAlias = NDArray[numpy.float64]
-MatrixInt: TypeAlias = NDArray[numpy.int64]
-MatrixBool: TypeAlias = NDArray[numpy.bool_]
-MatrixBytes: TypeAlias = NDArray[numpy.bytes_]
+Matrix: TypeAlias = NDMatrix[T_inv]
+MatrixObject: TypeAlias = NDMatrix[numpy.dtype[numpy.generic]]
+MatrixFloat: TypeAlias = NDMatrix[numpy.dtype[numpy.float64]]
+MatrixInt: TypeAlias = NDMatrix[numpy.dtype[numpy.int64]]
+MatrixBool: TypeAlias = NDMatrix[numpy.dtype[numpy.bool_]]
+MatrixBytes: TypeAlias = NDMatrix[numpy.dtype[numpy.bytes_]]
 MatrixInput: TypeAlias = Union[Sequence[Sequence[T_inv]], Matrix[T_inv]]
 MatrixInputObject: TypeAlias = Union[Sequence[VectorInputObject], MatrixObject]
 MatrixInputFloat: TypeAlias = Union[Sequence[VectorInputFloat], MatrixFloat]
@@ -113,11 +126,11 @@ MatrixInputCompleteFloat: TypeAlias = Union[float, MatrixInputFloat]
 MatrixInputCompleteInt: TypeAlias = Union[int, MatrixInputInt]
 MatrixInputCompleteBool: TypeAlias = Union[bool, MatrixInputBool]
 
-Tensor: TypeAlias = NDArray[T_inv]
-TensorObject: TypeAlias = NDArray[numpy.generic]
-TensorFloat: TypeAlias = NDArray[numpy.float64]
-TensorInt: TypeAlias = NDArray[numpy.int64]
-TensorBool: TypeAlias = NDArray[numpy.bool_]
+Tensor: TypeAlias = NDTensor[T_inv]
+TensorObject: TypeAlias = NDTensor[numpy.dtype[numpy.generic]]
+TensorFloat: TypeAlias = NDTensor[numpy.dtype[numpy.float64]]
+TensorInt: TypeAlias = NDTensor[numpy.dtype[numpy.int64]]
+TensorBool: TypeAlias = NDTensor[numpy.dtype[numpy.bool_]]
 TensorInput: TypeAlias = Union[Sequence[Sequence[Sequence[T_inv]]], Tensor[T_inv]]
 TensorInputObject: TypeAlias = Union[Sequence[MatrixInputObject], TensorObject]
 TensorInputFloat: TypeAlias = Union[Sequence[MatrixInputFloat], TensorFloat]

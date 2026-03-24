@@ -886,7 +886,7 @@ arguments are given, which is ambiguous.
 
     def _prepare_dheight(self, dheight: float) -> MatrixFloat:
         zonez = self.subpars.zonez.values
-        nzones = (numpy.sum((z > zonez) * (zonez >= (z - dheight))) for z in zonez)
+        nzones = (numpy.sum([(z > zonez) * (zonez >= (z - dheight))]) for z in zonez)
         return self._prepare(tuple(max(n, 1) for n in nzones))
 
     def _prepare(self, nzones: tuple[int, ...]) -> MatrixFloat:

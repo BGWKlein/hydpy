@@ -79,7 +79,7 @@ class InterpAlgorithm(_Labeled):
         """Return a string representation of the actual |InterpAlgorithm| object
         prefixed with the given string."""
 
-    def print_table(self, xs: VectorFloat | MatrixFloat) -> None:
+    def print_table(self, xs: VectorInputFloat | MatrixInputFloat) -> None:
         """Process the given input data and print the interpolated output values as
         well as all partial first-order derivatives.
 
@@ -157,8 +157,7 @@ dy1/dx3   dy2/dx3
         table[0, ni:nt] = yns
         table[0, nt:] = [f"d{yn}/d{xn}" for xn, yn in itertools.product(xns, yns)]
 
-        # Mypy problem? See issue https://github.com/python/mypy/issues/8586:
-        xs_: float | Iterable[float]
+        xs_: float | VectorInputFloat
         for ri, xs_ in enumerate(xs):
             ri += 1
             if isinstance(xs_, float):

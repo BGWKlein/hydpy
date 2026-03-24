@@ -357,7 +357,9 @@ class SectorFlowPerimeters(
         dw = numpy.diff(w)
         p = numpy.sqrt(numpy.square(2.0 * dh) + numpy.square(dw))
         self.values = 0.0
-        for i, t in enumerate(itertools.chain([0], control.transitions.values)):
+        for i, t in enumerate(
+            itertools.chain([numpy.int64(0)], control.transitions.values)
+        ):
             self.values[i, t:] = w[i, t]
             self.values[i, t + 1 :] += numpy.cumsum(p[i, t:])
 
@@ -405,7 +407,9 @@ class SectorFlowPerimeterDerivatives(
         self.values = numpy.nan
         v = self.values
         v[:, -1] = 2.0
-        for i, t in enumerate(itertools.chain([0], control.transitions.values)):
+        for i, t in enumerate(
+            itertools.chain([numpy.int64(0)], control.transitions.values)
+        ):
             d = 2.0
             for j in range(n - 2, t - 1, -1):
                 if dh[j] > 0.0:

@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     # NDIM = 2, TYPE = float
     sred: hland_control.SRed
-    assert_type(sred.value, typingtools.VectorFloat)
+    assert_type(sred.value, typingtools.MatrixFloat)
     sred.value = 1.0
     sred.value = 1
     sred.value = [1.0]  # type: ignore[list-item]
