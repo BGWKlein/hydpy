@@ -1529,7 +1529,7 @@ parameter and a simulation time step size first.
         return variabletools.trim(self, lower, upper)
 
     @classmethod
-    def apply_timefactor(cls, values: ArrayFloat) -> ArrayFloat:
+    def apply_timefactor(cls, values: ArrayFloatFlex) -> ArrayFloatFlex:
         """Change and return the given value(s) in accordance with
         |Parameter.get_timefactor| and the type of time-dependence
         of the actual parameter subclass.
@@ -1580,7 +1580,7 @@ parameter and a simulation time step size first.
         return values
 
     @classmethod
-    def revert_timefactor(cls, values: ArrayFloat) -> ArrayFloat:
+    def revert_timefactor(cls, values: ArrayFloatFlex) -> ArrayFloatFlex:
         """The inverse version of method |Parameter.apply_timefactor|.
 
         See the explanations on method Parameter.apply_timefactor| to

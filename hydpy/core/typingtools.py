@@ -145,8 +145,16 @@ NestedFloat: TypeAlias = Union[
     float, NDArrayFloat, Mapping[str, "NestedFloat"], Sequence["NestedFloat"]
 ]
 
-ArrayFloat = TypeVar(
-    "ArrayFloat", float, VectorFloat, MatrixFloat, Union[float, VectorFloat]
+ArrayFloat = TypeVar("ArrayFloat", float, VectorFloat, MatrixFloat, TensorFloat)
+ArrayFloatFlex = TypeVar(
+    "ArrayFloatFlex",
+    float,
+    VectorFloat,
+    MatrixFloat,
+    TensorFloat,
+    Union[float, VectorFloat],
+    Union[float, MatrixFloat],
+    Union[float, TensorFloat],
 )
 
 ConditionsSubmodel: TypeAlias = dict[str, dict[str, float | NDArrayFloat]]
@@ -275,6 +283,7 @@ __all__ = [
     "AbstractContextManager",
     "Any",
     "ArrayFloat",
+    "ArrayFloatFlex",
     "assert_never",
     "Callable",
     "cast",

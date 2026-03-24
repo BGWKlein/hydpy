@@ -368,7 +368,7 @@ class ArrayDescriptor:
         self,
         obj: Test,
         sequence2value: (
-            Sequence[tuple[sequencetools.ConditionSequence, ArrayFloat]]
+            Sequence[tuple[sequencetools.ConditionSequence, ArrayFloatFlex]]
         ) | None,
     ) -> None:
         self.__delete__(obj)
