@@ -156,6 +156,7 @@ ArrayFloatFlex = TypeVar(
     Union[float, MatrixFloat],
     Union[float, TensorFloat],
 )
+VectorFloatFlex = TypeVar("VectorFloatFlex", float, VectorFloat)
 
 ConditionsSubmodel: TypeAlias = dict[str, dict[str, float | NDArrayFloat]]
 ConditionsModel: TypeAlias = dict[str, ConditionsSubmodel]
@@ -392,6 +393,7 @@ __all__ = [
     "Vector",
     "VectorBool",
     "VectorFloat",
+    "VectorFloatFlex",
     "VectorInput",
     "VectorInputBool",
     "VectorInputFloat",
