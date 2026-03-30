@@ -3653,7 +3653,7 @@ class `Element` is deprecated.  Use method `prepare_model` instead.
         *,
         subseqs: sequencetools.IOSequences[
             modeltools.Model,
-            sequencetools.Sequences,
+            sequencetools.Sequences[modeltools.Model],
             sequencetools.IOSequence,
             sequencetools.FastAccessIOSequence,
         ],
@@ -3736,7 +3736,7 @@ class `Element` is deprecated.  Use method `prepare_model` instead.
         self,
         subseqs: sequencetools.IOSequences[
             modeltools.Model,
-            sequencetools.Sequences,
+            sequencetools.Sequences[modeltools.Model],
             sequencetools.IOSequence,
             sequencetools.FastAccessIOSequence,
         ],

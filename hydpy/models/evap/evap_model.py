@@ -8375,7 +8375,7 @@ class Main_RET_PETModel_V1(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that use submodels named `retmodel`
     and comply with the |PETModel_V1| interface."""
 
-    retmodel: modeltools.SubmodelProperty
+    retmodel: modeltools.SubmodelProperty[petinterfaces.PETModel_V1]
     retmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     retmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8416,7 +8416,9 @@ class Main_PET_PETModel_V1(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that use submodels named `petmodel`
     and comply with the |PETModel_V1| interface."""
 
-    petmodel: modeltools.SubmodelProperty
+    petmodel: modeltools.SubmodelProperty[
+        petinterfaces.PETModel_V1 | petinterfaces.PETModel_V2
+    ]
     petmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     petmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8453,7 +8455,9 @@ class Main_PET_PETModel_V2(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that use submodels named `petmodel`
     and comply with the |PETModel_V2| interface."""
 
-    petmodel: modeltools.SubmodelProperty
+    petmodel: modeltools.SubmodelProperty[
+        petinterfaces.PETModel_V1 | petinterfaces.PETModel_V2
+    ]
     petmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     petmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8504,7 +8508,9 @@ class Main_TempModel_V1(modeltools.AdHocModel, modeltools.SubmodelInterface):
     """Base class for |evap.DOCNAME.long| models that can use main models as their
     sub-submodels if they comply with the |TempModel_V1| interface."""
 
-    tempmodel: modeltools.SubmodelProperty
+    tempmodel: modeltools.SubmodelProperty[
+        tempinterfaces.TempModel_V1 | tempinterfaces.TempModel_V2
+    ]
     tempmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     tempmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8545,7 +8551,9 @@ class Main_TempModel_V2A(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |TempModel_V2| interface and provide subarea size information."""
 
-    tempmodel: modeltools.SubmodelProperty
+    tempmodel: modeltools.SubmodelProperty[
+        tempinterfaces.TempModel_V1 | tempinterfaces.TempModel_V2
+    ]
     tempmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     tempmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8588,7 +8596,9 @@ class Main_TempModel_V2B(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |TempModel_V2| interface and do not provide subarea size information."""
 
-    tempmodel: modeltools.SubmodelProperty
+    tempmodel: modeltools.SubmodelProperty[
+        tempinterfaces.TempModel_V1 | tempinterfaces.TempModel_V2
+    ]
     tempmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     tempmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8629,7 +8639,9 @@ class Main_PrecipModel_V1(modeltools.AdHocModel, modeltools.SubmodelInterface):
     """Base class for |evap.DOCNAME.long| models that can use main models as their
     sub-submodels if they comply with the |PrecipModel_V1| interface."""
 
-    precipmodel: modeltools.SubmodelProperty
+    precipmodel: modeltools.SubmodelProperty[
+        precipinterfaces.PrecipModel_V1 | precipinterfaces.PrecipModel_V2
+    ]
     precipmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     precipmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8670,7 +8682,9 @@ class Main_PrecipModel_V2A(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |PrecipModel_V2| interface."""
 
-    precipmodel: modeltools.SubmodelProperty
+    precipmodel: modeltools.SubmodelProperty[
+        precipinterfaces.PrecipModel_V1 | precipinterfaces.PrecipModel_V2
+    ]
     precipmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     precipmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8712,7 +8726,9 @@ class Main_PrecipModel_V2B(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |PrecipModel_V2| interface."""
 
-    precipmodel: modeltools.SubmodelProperty
+    precipmodel: modeltools.SubmodelProperty[
+        precipinterfaces.PrecipModel_V1 | precipinterfaces.PrecipModel_V2
+    ]
     precipmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     precipmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8752,7 +8768,7 @@ class Main_RadiationModel_V1(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |RadiationModel_V1| interface."""
 
-    radiationmodel: modeltools.SubmodelProperty
+    radiationmodel: modeltools.SubmodelProperty[Any]
     radiationmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     radiationmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8781,7 +8797,7 @@ class Main_RadiationModel_V2(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |RadiationModel_V2| interface."""
 
-    radiationmodel: modeltools.SubmodelProperty
+    radiationmodel: modeltools.SubmodelProperty[Any]
     radiationmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     radiationmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8809,7 +8825,7 @@ class Main_RadiationModel_V3(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |RadiationModel_V3| interface."""
 
-    radiationmodel: modeltools.SubmodelProperty
+    radiationmodel: modeltools.SubmodelProperty[Any]
     radiationmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     radiationmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8840,7 +8856,9 @@ class Main_RadiationModel_V4(modeltools.AdHocModel):
     """Base class for |evap.DOCNAME.long| models that support submodels that comply
     with the |RadiationModel_V4| interface."""
 
-    radiationmodel: modeltools.SubmodelProperty
+    radiationmodel: modeltools.SubmodelProperty[
+        radiationinterfaces.RadiationModel_V1 | radiationinterfaces.RadiationModel_V4
+    ]
     radiationmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     radiationmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8874,7 +8892,7 @@ class Main_IntercModel_V1(modeltools.AdHocModel, modeltools.SubmodelInterface):
     """Base class for |evap.DOCNAME.long| models that can use main models as their
     sub-submodels if they comply with the |IntercModel_V1| interface."""
 
-    intercmodel: modeltools.SubmodelProperty
+    intercmodel: modeltools.SubmodelProperty[stateinterfaces.IntercModel_V1]
     intercmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     intercmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8940,7 +8958,7 @@ class Main_SoilWaterModel_V1(modeltools.AdHocModel, modeltools.SubmodelInterface
     """Base class for |evap.DOCNAME.long| models that can use main models as their
     sub-submodels if they comply with the |SoilWaterModel_V1| interface."""
 
-    soilwatermodel: modeltools.SubmodelProperty
+    soilwatermodel: modeltools.SubmodelProperty[stateinterfaces.SoilWaterModel_V1]
     soilwatermodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     soilwatermodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -9006,7 +9024,7 @@ class Main_SnowCoverModel_V1(modeltools.AdHocModel, modeltools.SubmodelInterface
     """Base class for |evap.DOCNAME.long| models that can use main models as their
     sub-submodels if they comply with the |SnowCoverModel_V1| interface."""
 
-    snowcovermodel: modeltools.SubmodelProperty
+    snowcovermodel: modeltools.SubmodelProperty[stateinterfaces.SnowCoverModel_V1]
     snowcovermodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     snowcovermodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -9072,7 +9090,7 @@ class Main_SnowyCanopyModel_V1(modeltools.AdHocModel, modeltools.SubmodelInterfa
     """Base class for |evap.DOCNAME.long| models that can use main models as their
     sub-submodels if they comply with the |SnowyCanopyModel_V1| interface."""
 
-    snowycanopymodel: modeltools.SubmodelProperty
+    snowycanopymodel: modeltools.SubmodelProperty[stateinterfaces.SnowyCanopyModel_V1]
     snowycanopymodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     snowycanopymodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -9138,7 +9156,7 @@ class Main_SnowAlbedoModel_V1(modeltools.AdHocModel, modeltools.SubmodelInterfac
     """Base class for |evap.DOCNAME.long| models that can use main models as their
     sub-submodels if they comply with the |SnowAlbedoModel_V1| interface."""
 
-    snowalbedomodel: modeltools.SubmodelProperty
+    snowalbedomodel: modeltools.SubmodelProperty[stateinterfaces.SnowAlbedoModel_V1]
     snowalbedomodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     snowalbedomodel_typeid = modeltools.SubmodelTypeIDProperty()
 

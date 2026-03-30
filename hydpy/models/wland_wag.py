@@ -1233,9 +1233,9 @@ class Model(
     )
     SUBMODELS = ()
 
-    petmodel = modeltools.SubmodelProperty(
-        petinterfaces.PETModel_V1, petinterfaces.PETModel_V2
-    )
+    petmodel = modeltools.SubmodelProperty[
+        petinterfaces.PETModel_V1 | petinterfaces.PETModel_V2
+    ](petinterfaces.PETModel_V1, petinterfaces.PETModel_V2)
     dischargemodel = modeltools.SubmodelProperty(dischargeinterfaces.DischargeModel_V2)
     waterlevelmodel = modeltools.SubmodelProperty(stateinterfaces.WaterLevelModel_V1)
 

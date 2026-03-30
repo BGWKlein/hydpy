@@ -1838,9 +1838,9 @@ class Model(
     )
 
     idx_hru = modeltools.Idx_HRU()
-    radiationmodel = modeltools.SubmodelProperty(
-        radiationinterfaces.RadiationModel_V1, radiationinterfaces.RadiationModel_V4
-    )
+    radiationmodel = modeltools.SubmodelProperty[
+        radiationinterfaces.RadiationModel_V1 | radiationinterfaces.RadiationModel_V4
+    ](radiationinterfaces.RadiationModel_V1, radiationinterfaces.RadiationModel_V4)
     aetmodel = modeltools.SubmodelProperty(aetinterfaces.AETModel_V1)
     soilmodel = modeltools.SubmodelProperty(soilinterfaces.SoilModel_V1, optional=True)
 

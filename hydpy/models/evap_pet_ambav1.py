@@ -467,15 +467,15 @@ class Model(
     )
     SUBMODELS = ()
 
-    tempmodel = modeltools.SubmodelProperty(
-        tempinterfaces.TempModel_V1, tempinterfaces.TempModel_V2
-    )
-    precipmodel = modeltools.SubmodelProperty(
-        precipinterfaces.PrecipModel_V1, precipinterfaces.PrecipModel_V2
-    )
-    radiationmodel = modeltools.SubmodelProperty(
-        radiationinterfaces.RadiationModel_V1, radiationinterfaces.RadiationModel_V4
-    )
+    tempmodel = modeltools.SubmodelProperty[
+        tempinterfaces.TempModel_V1 | tempinterfaces.TempModel_V2
+    ](tempinterfaces.TempModel_V1, tempinterfaces.TempModel_V2)
+    precipmodel = modeltools.SubmodelProperty[
+        precipinterfaces.PrecipModel_V1 | precipinterfaces.PrecipModel_V2
+    ](precipinterfaces.PrecipModel_V1, precipinterfaces.PrecipModel_V2)
+    radiationmodel = modeltools.SubmodelProperty[
+        radiationinterfaces.RadiationModel_V1 | radiationinterfaces.RadiationModel_V4
+    ](radiationinterfaces.RadiationModel_V1, radiationinterfaces.RadiationModel_V4)
     snowcovermodel = modeltools.SubmodelProperty(stateinterfaces.SnowCoverModel_V1)
 
 

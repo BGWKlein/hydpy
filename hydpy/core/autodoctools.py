@@ -1546,7 +1546,10 @@ title="hydpy.interfaces.aetinterfaces.AETModel_V1">\
     )
 
 
-Port: TypeAlias = modeltools.SubmodelProperty | modeltools.SubmodelsProperty
+Port: TypeAlias = (
+    modeltools.SubmodelProperty[modeltools.SubmodelInterface]
+    | modeltools.SubmodelsProperty[modeltools.SubmodelInterface]
+)
 
 Subgraphs: TypeAlias = dict[
     type[modeltools.Model], dict[Port, list[type[modeltools.Model]]]

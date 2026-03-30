@@ -2387,7 +2387,8 @@ def prepare_io_example_1() -> tuple[devicetools.Nodes, devicetools.Elements]:
         elements.prepare_stateseries(allocate_ram=False)
         elements.prepare_stateseries(allocate_ram=True)
 
-    def init_values(seq: TestIOSequence, value1_: float) -> float:
+    def init_values(seq: sequencetools.IOSequence, value1_: float) -> float:
+        seq = cast("TestIOSequence", seq)  # pylint: disable=used-before-assignment
         value2_ = value1_ + len(seq.series.flatten())
         values_ = numpy.arange(value1_, value2_, dtype=config.NP_FLOAT)
         seq.testarray = values_.reshape(seq.seriesshape)
@@ -2402,9 +2403,9 @@ def prepare_io_example_1() -> tuple[devicetools.Nodes, devicetools.Elements]:
             subseqs = getattr(model.sequences, subname)
             value1 = init_values(getattr(subseqs, seqname), value1)
     for node in nodes:
-        value1 = init_values(node.sequences.sim, value1)  # type: ignore[arg-type]
-    init_values(model4.sequences.states.sp, value1)  # type: ignore[arg-type]
-    init_values(model3.sequences.inputs.windspeed, value1)  # type: ignore[arg-type]
+        value1 = init_values(node.sequences.sim, value1)
+    init_values(model4.sequences.states.sp, value1)
+    init_values(model3.sequences.inputs.windspeed, value1)
     assert (aetmodel := model3.aetmodel) is not None
     init_values(aetmodel.sequences.inputs.windspeed, value1)
 

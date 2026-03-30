@@ -320,9 +320,9 @@ class Model(
     SUBMODELINTERFACES = (petinterfaces.PETModel_V1,)
     SUBMODELS = ()
 
-    petmodel = modeltools.SubmodelProperty(
-        petinterfaces.PETModel_V1, petinterfaces.PETModel_V2
-    )
+    petmodel = modeltools.SubmodelProperty[
+        petinterfaces.PETModel_V1 | petinterfaces.PETModel_V2
+    ](petinterfaces.PETModel_V1, petinterfaces.PETModel_V2)
     intercmodel = modeltools.SubmodelProperty(stateinterfaces.IntercModel_V1)
     soilwatermodel = modeltools.SubmodelProperty(stateinterfaces.SoilWaterModel_V1)
 

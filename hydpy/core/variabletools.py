@@ -25,14 +25,15 @@ from hydpy.core.typingtools import *
 
 if TYPE_CHECKING:
     from hydpy.core import devicetools
+    from hydpy.core import modeltools
     from hydpy.core import parametertools
     from hydpy.core import sequencetools
     from hydpy.cythons import pointerutils
 
 TypeGroup_co = TypeVar(
     "TypeGroup_co",
-    "parametertools.Parameters",
-    "sequencetools.Sequences",
+    "parametertools.Parameters[modeltools.Model]",
+    "sequencetools.Sequences[modeltools.Model]",
     "devicetools.Node",
     covariant=True,
 )
@@ -1047,7 +1048,7 @@ var != [nan, nan, nan], var >= [nan, nan, nan], var > [nan, nan, nan]
     """Unit of the variable."""
     fastaccess: FastAccess
     """Object for accessing the variable's data with little overhead."""
-    subvars: SubVariables
+    subvars: SubVariables[Any, Any, Any, Any]
     """The subgroup to which the variable belongs."""
 
     _refweights: parametertools.Parameter | VectorFloat | None = None
@@ -1114,7 +1115,7 @@ var != [nan, nan, nan], var >= [nan, nan, nan], var > [nan, nan, nan]
             finally:
                 cls._refweights = old
 
-    def __init__(self, subvars: SubVariables) -> None:
+    def __init__(self, subvars: SubVariables[Any, Any, Any, Any]) -> None:
         self.subvars = subvars
         self.fastaccess = self._CLS_FASTACCESS_PYTHON()
         self._valueready = False
@@ -1653,7 +1654,7 @@ var([[1.0, nan, 1.0], [1.0, nan, 1.0]]).
             )
 
     @property
-    def valuevector(self) -> Vector:
+    def valuevector(self) -> VectorFloat:
         """The values of the actual |Variable| object, arranged in a 1-dimensional
         vector.
 
@@ -2112,7 +2113,7 @@ has been determined, which is not a submask of `Soil([ True,  True, False])`.
     def _compare(
         self,
         other: object,
-        comparefunc: Callable,
+        comparefunc: Callable[..., Any],
         callingfunc: Literal["lt", "le", "eq", "ne", "ge", "gt"],
     ) -> bool:
         try:
@@ -2472,7 +2473,7 @@ error occurred: 5 values are assigned to the scalar variable `testvar`.
         master: TypeGroup_co,
         cls_fastaccess: type[TypeFastAccess_co] | None = None,
     ):
-        self.vars = master
+        self.vars = master  # type: ignore[assignment]
         if cls_fastaccess:
             self._cls_fastaccess = cls_fastaccess
         self._init_fastaccess()
@@ -2488,7 +2489,7 @@ error occurred: 5 values are assigned to the scalar variable `testvar`.
         """To be overridden."""
 
     @functools.cached_property
-    def names(self) -> frozenset:
+    def names(self) -> frozenset[str]:
         """The names of all handled variables."""
         return frozenset(self._name2variable)
 

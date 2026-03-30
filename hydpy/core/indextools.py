@@ -30,7 +30,7 @@ def _get_timegrids(func: Date2Float) -> timetools.Timegrids:
     return timegrids
 
 
-class IndexerProperty(propertytools.BaseProperty):
+class IndexerProperty(propertytools.BaseProperty[Any, Any]):
     """A property for handling time-related indices.
 
     Some models (e.g. |lland_dd|) require time related index values. |IndexerProperty|
@@ -39,8 +39,8 @@ class IndexerProperty(propertytools.BaseProperty):
     property |Indexer.monthofyear| as an example.
 
     Generally, |Indexer| needs to know the relevant initialisation period before being
-    able to calculate any time-related index values.  If you forget to define one first,
-    you get the following error message:
+    able to calculate any time-related index values.  If you forget to define one
+    first, you get the following error message:
 
     >>> from hydpy import print_vector, pub
     >>> pub.indexer.monthofyear
@@ -48,9 +48,9 @@ class IndexerProperty(propertytools.BaseProperty):
     ...
     hydpy.core.exceptiontools.AttributeNotReady: An Indexer object has been asked for \
 an `monthofyear` array.  Such an array has neither been determined yet nor can it be \
-determined automatically at the moment.  Either define an `monthofyear` array manually \
-and pass it to the Indexer object, or make a proper Timegrids object available within \
-the pub module.
+determined automatically at the moment.  Either define an `monthofyear` array \
+manually and pass it to the Indexer object, or make a proper Timegrids object \
+available within the pub module.
 
     For efficiency, repeated querying of |Indexer.monthofyear| returns the same |numpy|
     |numpy.array| object:

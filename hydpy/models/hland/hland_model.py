@@ -4523,7 +4523,7 @@ class Main_AETModel_V1(modeltools.AdHocModel):
     """Base class for |hland.DOCNAME.long| models that use submodels that comply with
     the |AETModel_V1| interface."""
 
-    aetmodel: modeltools.SubmodelProperty
+    aetmodel: modeltools.SubmodelProperty[aetinterfaces.AETModel_V1]
     aetmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     aetmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -4619,7 +4619,7 @@ class Main_RConcModel_V1(modeltools.AdHocModel):
     """Base class for |hland.DOCNAME.long| models that use submodels that comply with
     the |RConcModel_V1| interface."""
 
-    rconcmodel: modeltools.SubmodelProperty
+    rconcmodel: modeltools.SubmodelProperty[rconcinterfaces.RConcModel_V1]
     rconcmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     rconcmodel_typeid = modeltools.SubmodelTypeIDProperty()
 

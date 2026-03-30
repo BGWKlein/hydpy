@@ -1560,6 +1560,9 @@ There is no indication of an error in the water balance:
 0.0
 """
 
+from __future__ import annotations
+
+from hydpy.core.typingtools import *
 from hydpy.auxs.anntools import ANN  # pylint: disable=unused-import
 from hydpy.auxs.ppolytools import Poly, PPoly  # pylint: disable=unused-import
 from hydpy.core import importtools
@@ -1572,7 +1575,8 @@ from hydpy.models.sw1d import sw1d_control
 from hydpy.models.sw1d import sw1d_derived
 from hydpy.models.sw1d import sw1d_model
 
-# from hydpy.models import sw1d_network  # actual import at the file's bottom
+if TYPE_CHECKING:
+    from hydpy.models import sw1d_network  # actual import at the file's bottom
 
 
 ADDITIONAL_DERIVEDPARAMETERS = (sw1d_derived.Seconds,)
@@ -2010,7 +2014,7 @@ as rm2:
         super()._connect_outlets(report_noconnect)
 
     @property
-    def couple_models(self) -> modeltools.ModelCoupler:
+    def couple_models(self) -> modeltools.ModelCoupler[sw1d_network.Model, Model]:
         """The model coupler |sw1d_network.combine_channels|, as defined by the
         composite model |sw1d_network|."""
         return sw1d_network.combine_channels

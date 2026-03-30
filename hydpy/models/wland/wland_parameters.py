@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from hydpy.core import objecttools
+from hydpy.core import modeltools
 from hydpy.core import parametertools
 from hydpy.core.typingtools import *
 from hydpy.models.wland import wland_constants
@@ -80,7 +81,7 @@ not be set based on the given keyword arguments.
     _SOIL2VALUE: dict[int, float]
     _soil: int | None
 
-    def __init__(self, subvars: parametertools.SubParameters):
+    def __init__(self, subvars: parametertools.SubParameters[modeltools.Model]) -> None:
         super().__init__(subvars)
         self._soil = None
 

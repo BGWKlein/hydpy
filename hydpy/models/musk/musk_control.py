@@ -99,7 +99,7 @@ class NmbSegments(parametertools.Parameter):
         model = self.subpars.pars.model
         model.nmb_segments = shape
         pars, seqs = model.parameters, model.sequences
-        all_subvars: tuple[variabletools.SubVariables, ...] = (
+        all_subvars = (
             pars.control,
             pars.derived,
             seqs.factors,

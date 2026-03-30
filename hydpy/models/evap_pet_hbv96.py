@@ -135,12 +135,12 @@ class Model(
     )
     SUBMODELS = ()
 
-    tempmodel = modeltools.SubmodelProperty(
-        tempinterfaces.TempModel_V1, tempinterfaces.TempModel_V2
-    )
-    precipmodel = modeltools.SubmodelProperty(
-        precipinterfaces.PrecipModel_V1, precipinterfaces.PrecipModel_V2
-    )
+    tempmodel = modeltools.SubmodelProperty[
+        tempinterfaces.TempModel_V1 | tempinterfaces.TempModel_V2
+    ](tempinterfaces.TempModel_V1, tempinterfaces.TempModel_V2)
+    precipmodel = modeltools.SubmodelProperty[
+        precipinterfaces.PrecipModel_V1 | precipinterfaces.PrecipModel_V2
+    ](precipinterfaces.PrecipModel_V1, precipinterfaces.PrecipModel_V2)
 
 
 tester = Tester()

@@ -11,6 +11,7 @@ import numpy
 
 from hydpy import config
 from hydpy.core import exceptiontools
+from hydpy.core import modeltools
 from hydpy.core import objecttools
 from hydpy.core import parametertools
 from hydpy.core.typingtools import *
@@ -856,7 +857,7 @@ arguments are given, which is ambiguous.
 
     _keywordarguments = parametertools.KeywordArguments(False)
 
-    def __init__(self, subvars: parametertools.SubParameters) -> None:
+    def __init__(self, subvars: parametertools.SubParameters[modeltools.Model]) -> None:
         super().__init__(subvars)
         self._keywordarguments = parametertools.KeywordArguments(False)
 

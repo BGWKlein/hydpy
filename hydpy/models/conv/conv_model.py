@@ -381,7 +381,9 @@ class Interpolate_InverseDistance_V1(modeltools.Method):
     RESULTSEQUENCES = ()
 
     @staticmethod
-    def __call__(model: modeltools.Model, inputs: Vector, outputs: Vector, /) -> None:
+    def __call__(
+        model: modeltools.Model, inputs: VectorFloat, outputs: VectorFloat, /
+    ) -> None:
         con = model.parameters.control.fastaccess
         der = model.parameters.derived.fastaccess
         for idx_out in range(der.nmboutputs):

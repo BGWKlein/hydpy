@@ -39,7 +39,9 @@ if TYPE_CHECKING:
     from hydpy.core import timetools
 
 
-Reference: TypeAlias = Union[parametertools.Parameter, parametertools.KeywordArguments]
+Reference: TypeAlias = Union[
+    parametertools.Parameter, parametertools.KeywordArguments[T_inv]
+]
 
 
 class Auxfiler:
@@ -374,7 +376,9 @@ class SubAuxfiler:
 
     _master: Auxfiler | None
     _model: modeltools.Model | None
-    _type2filename2reference: dict[type[parametertools.Parameter], dict[str, Reference]]
+    _type2filename2reference: dict[
+        type[parametertools.Parameter], dict[str, Reference[Any]]
+    ]
 
     def __init__(
         self, master: Auxfiler | None = None, model: modeltools.Model | None = None
@@ -581,7 +585,7 @@ handled by the actual `SubAuxfiler` object.
 
     @staticmethod
     def _check_duplicate(
-        filename2reference: dict[str, Reference],
+        filename2reference: dict[str, Reference[Any]],
         parameter: parametertools.Parameter,
         filename: str,
         keywordarguments: parametertools.KeywordArguments[T_inv] | None,
@@ -931,7 +935,7 @@ error occurred: 'NoneType' object has no attribute 'items'
         self,
         filename: str | None = None,
         parametertype: type[parametertools.Parameter] | None = None,
-    ) -> tuple[Reference, ...]:
+    ) -> tuple[Reference[Any], ...]:
         """Return a |tuple| of all or a selection of the reference parameter objects
         or their related reference keyword arguments.
 
@@ -982,7 +986,7 @@ error occurred: 'NoneType' object has no attribute 'items'
         >>> subauxfiler.get_references(filename="file1", parametertype=type(eqb))
         (eqb(5000.0),)
         """
-        references: list[Reference] = []
+        references: list[Reference[Any]] = []
         for type_, fn2ref in variabletools.sort_variables(
             self._type2filename2reference.items()
         ):
@@ -1113,7 +1117,7 @@ file2
             )
         return filenames[0]
 
-    def __getattr__(self, name: str) -> tuple[Reference, ...]:
+    def __getattr__(self, name: str) -> tuple[Reference[Any], ...]:
         type2ref = {}
         for type_, fn2ref in self._type2filename2reference.items():
             if name == type_.name:

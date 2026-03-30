@@ -7735,7 +7735,7 @@ class Main_RadiationModel_V1(modeltools.AdHocModel):
     """Base class for |lland.DOCNAME.long| models that support submodels that comply
     with the |RadiationModel_V1| interface."""
 
-    radiationmodel: modeltools.SubmodelProperty
+    radiationmodel: modeltools.SubmodelProperty[Any]
     radiationmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     radiationmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -7763,7 +7763,7 @@ class Main_RadiationModel_V4(modeltools.AdHocModel):
     """Base class for |lland.DOCNAME.long| models that support submodels that comply
     with the |RadiationModel_V4| interface."""
 
-    radiationmodel: modeltools.SubmodelProperty
+    radiationmodel: modeltools.SubmodelProperty[Any]
     radiationmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     radiationmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -7789,7 +7789,7 @@ class Main_RadiationModel_V4(modeltools.AdHocModel):
 
 class _Main_AETModel_V1(modeltools.AdHocModel):
 
-    aetmodel: modeltools.SubmodelProperty
+    aetmodel: modeltools.SubmodelProperty[aetinterfaces.AETModel_V1]
     aetmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     aetmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -8002,7 +8002,7 @@ class Main_SoilModel_V1(modeltools.AdHocModel):
     """Base class for |lland.DOCNAME.long| models that support submodels that comply
     with the |SoilModel_V1| interface."""
 
-    soilmodel: modeltools.SubmodelProperty
+    soilmodel: modeltools.SubmodelProperty[soilinterfaces.SoilModel_V1]
     soilmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     soilmodel_typeid = modeltools.SubmodelTypeIDProperty()
 

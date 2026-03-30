@@ -153,12 +153,12 @@ class Model(
     )
     SUBMODELS = ()
 
-    tempmodel = modeltools.SubmodelProperty(
-        tempinterfaces.TempModel_V1, tempinterfaces.TempModel_V2
-    )
-    radiationmodel = modeltools.SubmodelProperty(
-        radiationinterfaces.RadiationModel_V1, radiationinterfaces.RadiationModel_V2
-    )
+    tempmodel = modeltools.SubmodelProperty[
+        tempinterfaces.TempModel_V1 | tempinterfaces.TempModel_V2
+    ](tempinterfaces.TempModel_V1, tempinterfaces.TempModel_V2)
+    radiationmodel = modeltools.SubmodelProperty[
+        radiationinterfaces.RadiationModel_V1 | radiationinterfaces.RadiationModel_V2
+    ](radiationinterfaces.RadiationModel_V1, radiationinterfaces.RadiationModel_V2)
 
 
 tester = Tester()

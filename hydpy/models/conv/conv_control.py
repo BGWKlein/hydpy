@@ -4,6 +4,7 @@ import numpy
 
 from hydpy import config
 from hydpy.core import devicetools
+from hydpy.core import modeltools
 from hydpy.core import objecttools
 from hydpy.core import parametertools
 from hydpy.core.typingtools import *
@@ -76,7 +77,7 @@ Node("in3", variable="Q"))
     nodes: tuple[devicetools.Node, ...]
     """The relevant input or output nodes."""
 
-    def __init__(self, subvars: parametertools.SubParameters):
+    def __init__(self, subvars: parametertools.SubParameters[modeltools.Model]):
         super().__init__(subvars)
         self.nodes = ()
 
@@ -181,7 +182,7 @@ Node("in3", variable="Q"))
     nodes: tuple[devicetools.Node, ...]
     """The relevant input or output nodes."""
 
-    def __init__(self, subvars: parametertools.SubParameters):
+    def __init__(self, subvars: parametertools.SubParameters[modeltools.Model]):
         super().__init__(subvars)
         self.nodes = ()
 

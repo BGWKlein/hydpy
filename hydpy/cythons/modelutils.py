@@ -582,8 +582,8 @@ class Cythonizer:
     """Handles the writing, compiling and initialisation of Cython models."""
 
     Model: type[modeltools.Model]
-    Parameters: type[parametertools.Parameters]
-    Sequences: type[sequencetools.Sequences]
+    Parameters: type[parametertools.Parameters[modeltools.Model]]
+    Sequences: type[sequencetools.Sequences[modeltools.Model]]
     tester: testtools.Tester
     pymodule: str
     _cymodule: types.ModuleType | None
@@ -1170,9 +1170,11 @@ class PyxWriter:
         self,
         lines: PyxPxdLines,
         subseqs: (
-            sequencetools.InputSequences
-            | sequencetools.OutputSequences[Any, Any]
-            | sequencetools.LinkSequences[Any, Any]
+            sequencetools.InputSequences[modeltools.Model]
+            | sequencetools.OutputSequences[
+                modeltools.Model, sequencetools.OutputSequence
+            ]
+            | sequencetools.LinkSequences[modeltools.Model, sequencetools.LinkSequence]
         ),
     ) -> None:
         """Set pointer statements for all input, output, and link sequences."""
@@ -1190,7 +1192,10 @@ class PyxWriter:
 
     @staticmethod
     def set_pointer0d(
-        lines: PyxPxdLines, subseqs: sequencetools.LinkSequences[Any, Any]
+        lines: PyxPxdLines,
+        subseqs: sequencetools.LinkSequences[
+            modeltools.Model, sequencetools.LinkSequence
+        ],
     ) -> None:
         """Set pointer statements for 0-dimensional link sequences."""
         print("            . set_pointer0d")
@@ -1205,7 +1210,10 @@ class PyxWriter:
 
     @staticmethod
     def get_pointervalue(
-        lines: PyxPxdLines, subseqs: sequencetools.LinkSequences[Any, Any]
+        lines: PyxPxdLines,
+        subseqs: sequencetools.LinkSequences[
+            modeltools.Model, sequencetools.LinkSequence
+        ],
     ) -> None:
         """Get pointer value statements for link sequences."""
         print("            . get_value")
@@ -1225,7 +1233,10 @@ class PyxWriter:
 
     @staticmethod
     def set_pointervalue(
-        lines: PyxPxdLines, subseqs: sequencetools.LinkSequences[Any, Any]
+        lines: PyxPxdLines,
+        subseqs: sequencetools.LinkSequences[
+            modeltools.Model, sequencetools.LinkSequence
+        ],
     ) -> None:
         """Set pointer value statements for link sequences."""
         print("            . set_pointervalue")
@@ -1250,7 +1261,10 @@ class PyxWriter:
 
     @staticmethod
     def alloc_pointers(
-        lines: PyxPxdLines, subseqs: sequencetools.LinkSequences[Any, Any]
+        lines: PyxPxdLines,
+        subseqs: sequencetools.LinkSequences[
+            modeltools.Model, sequencetools.LinkSequence
+        ],
     ) -> None:
         """Allocate memory statements for 1-dimensional link sequences."""
         print("            . setlength")
@@ -1272,7 +1286,10 @@ class PyxWriter:
 
     @staticmethod
     def dealloc_pointers(
-        lines: PyxPxdLines, subseqs: sequencetools.LinkSequences[Any, Any]
+        lines: PyxPxdLines,
+        subseqs: sequencetools.LinkSequences[
+            modeltools.Model, sequencetools.LinkSequence
+        ],
     ) -> None:
         """Deallocate memory statements for 1-dimensional link sequences."""
         print("            . dealloc")
@@ -1284,7 +1301,10 @@ class PyxWriter:
 
     @staticmethod
     def set_pointer1d(
-        lines: PyxPxdLines, subseqs: sequencetools.LinkSequences[Any, Any]
+        lines: PyxPxdLines,
+        subseqs: sequencetools.LinkSequences[
+            modeltools.Model, sequencetools.LinkSequence
+        ],
     ) -> None:
         """Set_pointer statements for 1-dimensional link sequences."""
         print("            . set_pointer1d")
@@ -1302,7 +1322,7 @@ class PyxWriter:
 
     @classmethod
     def set_pointerinput(
-        cls, lines: PyxPxdLines, subseqs: sequencetools.InputSequences
+        cls, lines: PyxPxdLines, subseqs: sequencetools.InputSequences[modeltools.Model]
     ) -> None:
         """Set pointer statements for input sequences."""
         print("            . set_pointerinput")
@@ -1322,7 +1342,11 @@ class PyxWriter:
 
     @classmethod
     def set_pointeroutput(
-        cls, lines: PyxPxdLines, subseqs: sequencetools.OutputSequences[Any, Any]
+        cls,
+        lines: PyxPxdLines,
+        subseqs: sequencetools.OutputSequences[
+            modeltools.Model, sequencetools.OutputSequence
+        ],
     ) -> None:
         """Set pointer statements for output sequences."""
         print("            . set_pointeroutput")
@@ -1342,13 +1366,15 @@ class PyxWriter:
 
     @staticmethod
     def _filter_inputsequences(
-        subseqs: sequencetools.InputSequences,
+        subseqs: sequencetools.InputSequences[modeltools.Model],
     ) -> list[sequencetools.InputSequence]:
         return [subseq for subseq in subseqs if not subseq.NDIM]
 
     @staticmethod
     def _filter_outputsequences(
-        subseqs: sequencetools.OutputSequences[Any, Any],
+        subseqs: sequencetools.OutputSequences[
+            modeltools.Model, sequencetools.OutputSequence
+        ],
     ) -> list[sequencetools.OutputSequence]:
         return [subseq for subseq in subseqs if not subseq.NDIM]
 
@@ -1985,7 +2011,11 @@ class PyxWriter:
             pyx(2, "pass")
 
     def update_outputs(
-        self, lines: PyxPxdLines, subseqs: sequencetools.OutputSequences[Any, Any]
+        self,
+        lines: PyxPxdLines,
+        subseqs: sequencetools.OutputSequences[
+            modeltools.Model, sequencetools.OutputSequence
+        ],
     ) -> None:
         """Lines of the subsequences method with the same name."""
         pyx, both = lines.pyx.add, lines.add
@@ -2592,7 +2622,7 @@ class FuncConverter:
         self.inline = inline
 
     @property
-    def realfunc(self) -> Callable:
+    def realfunc(self) -> types.MethodType | Callable[[modeltools.Model], None]:
         """The "real" function, as as defined by the model developer or user."""
         if (reusablemethod := self.reusablemethod) is not None:
             return reusablemethod.__call__

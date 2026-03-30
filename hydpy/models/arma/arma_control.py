@@ -3,6 +3,7 @@
 import numpy
 
 from hydpy import config
+from hydpy.core import modeltools
 from hydpy.core import objecttools
 from hydpy.core import parametertools
 from hydpy.core.typingtools import *
@@ -205,7 +206,7 @@ the same threshold value(s) twice.
     NDIM: Final[Literal[0]] = 0
     TYPE: Final = float
 
-    def __init__(self, subvars: parametertools.SubParameters) -> None:
+    def __init__(self, subvars: parametertools.SubParameters[modeltools.Model]) -> None:
         with objecttools.ResetAttrFuncs(self):
             super().__init__(subvars)
             self._coefs = {}

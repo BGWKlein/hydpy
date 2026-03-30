@@ -6164,7 +6164,7 @@ class Main_PrecipModel_V2(modeltools.Model, abc.ABC):
     """Base class for |dam.DOCNAME.long| models that use submodels that comply with the
     |PrecipModel_V2| interface."""
 
-    precipmodel: modeltools.SubmodelProperty
+    precipmodel: modeltools.SubmodelProperty[precipinterfaces.PrecipModel_V2]
     precipmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     precipmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -6205,7 +6205,7 @@ class Main_PEModel_V1(modeltools.Model, abc.ABC):
     """Base class for |dam.DOCNAME.long| models that use submodels that comply with the
     |PETModel_V1| interface."""
 
-    pemodel: modeltools.SubmodelProperty
+    pemodel: modeltools.SubmodelProperty[petinterfaces.PETModel_V1]
     pemodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     pemodel_typeid = modeltools.SubmodelTypeIDProperty()
 

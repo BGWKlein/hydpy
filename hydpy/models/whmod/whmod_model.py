@@ -1964,7 +1964,7 @@ class Main_AETModel_V1(modeltools.AdHocModel):
     """Base class for |whmod.DOCNAME.long| models that use submodels that comply with
     the |AETModel_V1| interface."""
 
-    aetmodel: modeltools.SubmodelProperty
+    aetmodel: modeltools.SubmodelProperty[aetinterfaces.AETModel_V1]
     aetmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     aetmodel_typeid = modeltools.SubmodelTypeIDProperty()
 

@@ -44,10 +44,10 @@ TypeSubmodelInterface = TypeVar("TypeSubmodelInterface", bound="SubmodelInterfac
 
 
 class _ModelModule(types.ModuleType):
-    ControlParameters: type[parametertools.SubParameters]
-    DerivedParameters: type[parametertools.SubParameters]
-    FixedParameters: type[parametertools.SubParameters]
-    SolverParameters: type[parametertools.SubParameters]
+    ControlParameters: type[parametertools.SubParameters[Any]]
+    DerivedParameters: type[parametertools.SubParameters[Any]]
+    FixedParameters: type[parametertools.SubParameters[Any]]
+    SolverParameters: type[parametertools.SubParameters[Any]]
 
 
 class Method:
@@ -65,7 +65,7 @@ class Method:
     UPDATEDSEQUENCES: tuple[type[sequencetools.Sequence_], ...] = ()
     RESULTSEQUENCES: tuple[type[sequencetools.Sequence_], ...] = ()
 
-    __call__: Callable
+    __call__: Callable[..., Any]
     __name__: str
 
     def __init_subclass__(cls) -> None:
@@ -1098,8 +1098,8 @@ class Model:
     """
 
     cymodel: CyModelProtocol | None
-    parameters: parametertools.Parameters
-    sequences: sequencetools.Sequences
+    parameters: parametertools.Parameters[Model]
+    sequences: sequencetools.Sequences[Model]
     masks: masktools.Masks
     idx_sim = Idx_Sim()
     threading = Threading()
@@ -1112,7 +1112,7 @@ class Model:
     OBSERVER_METHODS: ClassVar[tuple[type[Method], ...]]
     RECEIVER_METHODS: ClassVar[tuple[type[Method], ...]]
     SENDER_METHODS: ClassVar[tuple[type[Method], ...]]
-    ADD_METHODS: ClassVar[tuple[Callable, ...]]
+    ADD_METHODS: ClassVar[tuple[type[Method], ...]]
     METHOD_GROUPS: ClassVar[tuple[str, ...]]
     SUBMODELINTERFACES: ClassVar[tuple[type[SubmodelInterface], ...]]
     SUBMODELS: ClassVar[tuple[type[Submodel], ...]]
@@ -2013,7 +2013,7 @@ submodel_meteo_glob_fao56:
             model: Model, sublevel: int, preparemethods: set[str]
         ) -> None:
             def _find_adder_and_position() -> (
-                tuple[importtools.SubmodelAdder, str | None]
+                tuple[importtools.SubmodelAdder[Any, Any, Any], str | None]
             ):
                 mt2sn2as = importtools.SubmodelAdder.__hydpy_maintype2subname2adders__
                 subname, position = name.rpartition(".")[2], None
@@ -2549,9 +2549,9 @@ the available directories (calib_1 and calib_2).
     def _update_pointers_in(
         self,
         subseqs: (
-            sequencetools.InletSequences
-            | sequencetools.ObserverSequences
-            | sequencetools.ReceiverSequences
+            sequencetools.InletSequences[Model]
+            | sequencetools.ObserverSequences[Model]
+            | sequencetools.ReceiverSequences[Model]
         ),
     ) -> None:
         if not self.threading:
@@ -2566,7 +2566,10 @@ the available directories (calib_1 and calib_2).
                             values[i] = pointer[i]
 
     def _update_pointers_out(
-        self, subseqs: sequencetools.OutletSequences | sequencetools.SenderSequences
+        self,
+        subseqs: (
+            sequencetools.OutletSequences[Model] | sequencetools.SenderSequences[Model]
+        ),
     ) -> None:
         if not self.threading:
             for seq in subseqs:
@@ -3178,7 +3181,7 @@ the available directories (calib_1 and calib_2).
             model.sequences.conditions = conditions[name]
 
     @property
-    def couple_models(self) -> ModelCoupler | None:
+    def couple_models(self) -> ModelCoupler[Any, Any] | None:
         """If available, return a function object for coupling models to a composite
         model suitable at least for the actual model subclass (see method
         |Elements.unite_collectives|)."""
@@ -4797,7 +4800,7 @@ class SubmodelInterface(Model, abc.ABC):
     """Base class for defining interfaces for submodels."""
 
     INTERFACE_METHODS: ClassVar[tuple[type[Method], ...]]
-    _submodeladder: importtools.SubmodelAdder | None
+    _submodeladder: importtools.SubmodelAdder[Any, Any, Any] | None
     preparemethod2arguments: dict[str, tuple[tuple[Any, ...], dict[str, Any]]]
 
     typeid: ClassVar[int]
@@ -4974,7 +4977,7 @@ sw1d_channel.
 
     _inputtypes: tuple[type[TypeModel_contra], ...]
     _outputtype: type[TypeModel_co]
-    _wrapped: CoupleModels
+    _wrapped: CoupleModels[TypeModel_co]
 
     def __init__(
         self,

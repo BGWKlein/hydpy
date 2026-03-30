@@ -3347,9 +3347,9 @@ class Model(modeltools.ELSModel):
     )
     SUBMODELS = (PegasusDGEq, QuadDVEq_V1, QuadDVEq_V2)
 
-    petmodel = modeltools.SubmodelProperty(
-        petinterfaces.PETModel_V1, petinterfaces.PETModel_V2
-    )
+    petmodel = modeltools.SubmodelProperty[
+        petinterfaces.PETModel_V1 | petinterfaces.PETModel_V2
+    ](petinterfaces.PETModel_V1, petinterfaces.PETModel_V2)
     petmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     petmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -3437,7 +3437,9 @@ class Main_PETModel_V1(modeltools.ELSModel):
     """Base class for |wland.DOCNAME.long| models that use submodels that comply with
     the |PETModel_V1| interface."""
 
-    petmodel: modeltools.SubmodelProperty
+    petmodel: modeltools.SubmodelProperty[
+        petinterfaces.PETModel_V1 | petinterfaces.PETModel_V2
+    ]
     petmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     petmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -3498,7 +3500,9 @@ class Main_PETModel_V2(modeltools.ELSModel):
     """Base class for |wland.DOCNAME.long| models that use submodels that comply with
     the |PETModel_V2| interface."""
 
-    petmodel: modeltools.SubmodelProperty
+    petmodel: modeltools.SubmodelProperty[
+        petinterfaces.PETModel_V1 | petinterfaces.PETModel_V2
+    ]
     petmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     petmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -3638,7 +3642,7 @@ class Main_DischargeModel_V2(modeltools.ELSModel):
     """Base class for |wland.DOCNAME.long| models that use submodels that comply with
     the |DischargeModel_V2| interface."""
 
-    dischargemodel: modeltools.SubmodelProperty
+    dischargemodel: modeltools.SubmodelProperty[dischargeinterfaces.DischargeModel_V2]
     dischargemodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     dischargemodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -3724,7 +3728,7 @@ class Main_WaterLevelModel_V1(modeltools.ELSModel):
     """Base class for |wland.DOCNAME.long| models that use submodels that comply with
     the |WaterLevelModel_V1| interface."""
 
-    waterlevelmodel: modeltools.SubmodelProperty
+    waterlevelmodel: modeltools.SubmodelProperty[stateinterfaces.WaterLevelModel_V1]
     waterlevelmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     waterlevelmodel_typeid = modeltools.SubmodelTypeIDProperty()
 

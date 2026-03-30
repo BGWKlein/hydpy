@@ -20,6 +20,7 @@ import numpy
 import hydpy
 from hydpy import config
 from hydpy.core import exceptiontools
+from hydpy.core import modeltools
 from hydpy.core import objecttools
 from hydpy.core import parametertools
 from hydpy.core import propertytools
@@ -220,9 +221,9 @@ class BaseInterpolator(_Labeled):
 
     name: str
     """Class name in lowercase letters."""
-    subvars: parametertools.SubParameters
+    subvars: parametertools.SubParameters[Any]
     """The |SubParameters| object containing the current |BaseInterpolator| object."""
-    subpars: parametertools.SubParameters
+    subpars: parametertools.SubParameters[Any]
     """The |SubParameters| object containing the current |BaseInterpolator| object."""
     fastaccess: parametertools.FastAccessParameter
     """The `fastaccess` object providing access to the interpolator functionalities
@@ -312,7 +313,7 @@ class SimpleInterpolator(BaseInterpolator):
 
     __simpleinterpolator: interputils.SimpleInterpolator | None
 
-    def __init__(self, subvars: parametertools.SubParameters) -> None:
+    def __init__(self, subvars: parametertools.SubParameters[modeltools.Model]) -> None:
         self.subvars = subvars
         self.subpars = subvars
         self.fastaccess = parametertools.FastAccessParameter()
@@ -709,7 +710,7 @@ error occurred: Value `1` of type `int` has been given, but an object of type \
     _do_refresh: bool
     __seasonalinterpolator: interputils.SeasonalInterpolator | None
 
-    def __init__(self, subvars: parametertools.SubParameters) -> None:
+    def __init__(self, subvars: parametertools.SubParameters[modeltools.Model]) -> None:
         self.subvars = subvars
         self.subpars = subvars
         self.fastaccess = parametertools.FastAccessParameter()

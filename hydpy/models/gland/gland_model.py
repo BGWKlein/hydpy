@@ -1300,7 +1300,7 @@ class Main_PETModel_V1(modeltools.AdHocModel):
     """Base class for |gland.DOCNAME.long| models that use submodels that comply with
     the |PETModel_V1| interface."""
 
-    petmodel: modeltools.SubmodelProperty
+    petmodel: modeltools.SubmodelProperty[petinterfaces.PETModel_V1]
     petmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     petmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -1342,7 +1342,7 @@ class Main_RConcModel_V1(modeltools.AdHocModel):
     """Base class for |gland.DOCNAME.long| models that use a single submodel that
     complies with the |RConcModel_V1| interface."""
 
-    rconcmodel: modeltools.SubmodelProperty
+    rconcmodel: modeltools.SubmodelProperty[rconcinterfaces.RConcModel_V1]
     rconcmodel_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     rconcmodel_typeid = modeltools.SubmodelTypeIDProperty()
 
@@ -1378,11 +1378,11 @@ class Main_RConcModel_V2(modeltools.AdHocModel):
     """Base class for |gland.DOCNAME.long| models that use two submodels that comply
     with the |RConcModel_V1| interface."""
 
-    rconcmodel_routingstore: modeltools.SubmodelProperty
+    rconcmodel_routingstore: modeltools.SubmodelProperty[rconcinterfaces.RConcModel_V1]
     rconcmodel_routingstore_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     rconcmodel_routingstore_typeid = modeltools.SubmodelTypeIDProperty()
 
-    rconcmodel_directflow: modeltools.SubmodelProperty
+    rconcmodel_directflow: modeltools.SubmodelProperty[rconcinterfaces.RConcModel_V1]
     rconcmodel_directflow_is_mainmodel = modeltools.SubmodelIsMainmodelProperty()
     rconcmodel_directflow_typeid = modeltools.SubmodelTypeIDProperty()
 

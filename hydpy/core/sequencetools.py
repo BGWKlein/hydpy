@@ -34,7 +34,9 @@ else:
     from hydpy.cythons.autogen import sequenceutils
 
 
-TypeSequences = TypeVar("TypeSequences", "Sequences", "devicetools.Node")
+TypeSequences = TypeVar(
+    "TypeSequences", "Sequences[modeltools.Model]", "devicetools.Node"
+)
 
 TypeModelSequences = TypeVar(
     "TypeModelSequences",
@@ -61,35 +63,35 @@ TypeFastAccessIOSequence_co = TypeVar(
 )
 
 ModelSequencesSubypes: TypeAlias = Union[
-    "InputSequences",
-    "FactorSequences",
-    "FluxSequences",
-    "StateSequences",
-    "LogSequences",
-    "AideSequences",
-    "InletSequences",
-    "OutletSequences",
-    "ReceiverSequences",
-    "ObserverSequences",
-    "SenderSequences",
+    "InputSequences[modeltools.Model]",
+    "FactorSequences[modeltools.Model]",
+    "FluxSequences[modeltools.Model]",
+    "StateSequences[modeltools.Model]",
+    "LogSequences[modeltools.Model]",
+    "AideSequences[modeltools.Model]",
+    "InletSequences[modeltools.Model]",
+    "OutletSequences[modeltools.Model]",
+    "ReceiverSequences[modeltools.Model]",
+    "ObserverSequences[modeltools.Model]",
+    "SenderSequences[modeltools.Model]",
 ]
 ModelIOSequencesSubtypes: TypeAlias = Union[
-    "InputSequences",
-    "FactorSequences",
-    "FluxSequences",
-    "StateSequences",
-    "InletSequences",
-    "OutletSequences",
-    "ReceiverSequences",
-    "SenderSequences",
-    "ObserverSequences",
+    "InputSequences[modeltools.Model]",
+    "FactorSequences[modeltools.Model]",
+    "FluxSequences[modeltools.Model]",
+    "StateSequences[modeltools.Model]",
+    "InletSequences[modeltools.Model]",
+    "OutletSequences[modeltools.Model]",
+    "ReceiverSequences[modeltools.Model]",
+    "SenderSequences[modeltools.Model]",
+    "ObserverSequences[modeltools.Model]",
 ]
 LinkSequencesSubtypes: TypeAlias = Union[
-    "InletSequences",
-    "OutletSequences",
-    "ReceiverSequences",
-    "ObserverSequences",
-    "SenderSequences",
+    "InletSequences[modeltools.Model]",
+    "OutletSequences[modeltools.Model]",
+    "ReceiverSequences[modeltools.Model]",
+    "ObserverSequences[modeltools.Model]",
+    "SenderSequences[modeltools.Model]",
 ]
 
 InOutSequence: TypeAlias = Union[
@@ -389,7 +391,7 @@ class InfoArray(NDArrayFloat):
         obj.aggregation = aggregation
         return obj
 
-    def __array_finalize__(self, obj: NDArray | None) -> None:
+    def __array_finalize__(self, obj: NDArrayFloat | None) -> None:
         if isinstance(obj, InfoArray):
             self.aggregation = obj.aggregation
         else:
@@ -615,17 +617,17 @@ class Sequences(Generic[TM_co]):
         self,
         model: TM_co,
         *,
-        cls_inlets: type[InletSequences] | None = None,
-        cls_observers: type[ObserverSequences] | None = None,
-        cls_receivers: type[ReceiverSequences] | None = None,
-        cls_inputs: type[InputSequences] | None = None,
-        cls_factors: type[FactorSequences] | None = None,
-        cls_fluxes: type[FluxSequences] | None = None,
-        cls_states: type[StateSequences] | None = None,
-        cls_logs: type[LogSequences] | None = None,
-        cls_aides: type[AideSequences] | None = None,
-        cls_outlets: type[OutletSequences] | None = None,
-        cls_senders: type[SenderSequences] | None = None,
+        cls_inlets: type[InletSequences[TM_co]] | None = None,
+        cls_observers: type[ObserverSequences[TM_co]] | None = None,
+        cls_receivers: type[ReceiverSequences[TM_co]] | None = None,
+        cls_inputs: type[InputSequences[TM_co]] | None = None,
+        cls_factors: type[FactorSequences[TM_co]] | None = None,
+        cls_fluxes: type[FluxSequences[TM_co]] | None = None,
+        cls_states: type[StateSequences[TM_co]] | None = None,
+        cls_logs: type[LogSequences[TM_co]] | None = None,
+        cls_aides: type[AideSequences[TM_co]] | None = None,
+        cls_outlets: type[OutletSequences[TM_co]] | None = None,
+        cls_senders: type[SenderSequences[TM_co]] | None = None,
         cymodel: CyModelProtocol | None = None,
         cythonmodule: types.ModuleType | None = None,
     ) -> None:
@@ -957,7 +959,10 @@ class SubSequences(
 
 class ModelSequences(
     SubSequences[
-        TM_co, Sequences, TypeModelSequence_co, variabletools.TypeFastAccess_co
+        TM_co,
+        Sequences["modeltools.Model"],
+        TypeModelSequence_co,
+        variabletools.TypeFastAccess_co,
     ]
 ):
     """Base class for handling model-related subgroups of sequences."""
@@ -967,7 +972,7 @@ class ModelSequences(
 
     def __init__(
         self,
-        master: Sequences,
+        master: Sequences[TM_co],
         cls_fastaccess: type[variabletools.TypeFastAccess_co] | None = None,
         cymodel: CyModelProtocol | None = None,
     ) -> None:
@@ -998,7 +1003,7 @@ class IOSequences(
 ):
     """Subclass of |SubSequences|, specialised for handling |IOSequence| objects."""
 
-    seqs: Sequences
+    seqs: Sequences[modeltools.Model]
 
     def prepare_series(
         self, allocate_ram: bool = True, read_jit: bool = False, write_jit: bool = False
@@ -1026,7 +1031,12 @@ class IOSequences(
 
 
 class ModelIOSequences(
-    IOSequences[TM_co, Sequences, TypeModelIOSequence_co, TypeFastAccessIOSequence_co],
+    IOSequences[
+        TM_co,
+        Sequences["modeltools.Model"],
+        TypeModelIOSequence_co,
+        TypeFastAccessIOSequence_co,
+    ],
     ModelSequences[TM_co, TypeModelIOSequence_co, TypeFastAccessIOSequence_co],
 ):
     """Base class for handling model-related subgroups of |IOSequence| objects."""
@@ -1227,12 +1237,22 @@ class Sequence_(variabletools.Variable):
     NUMERIC: TypeNUMERIC = False
 
     subvars: (
-        SubSequences[modeltools.Model, Sequences, Sequence_, variabletools.FastAccess]
+        SubSequences[
+            modeltools.Model,
+            Sequences[modeltools.Model],
+            Sequence_,
+            variabletools.FastAccess,
+        ]
         | SubSequences[None, devicetools.Node, Sequence_, variabletools.FastAccess]
     )
     """The subgroup to which the sequence belongs."""
     subseqs: (
-        SubSequences[modeltools.Model, Sequences, Sequence_, variabletools.FastAccess]
+        SubSequences[
+            modeltools.Model,
+            Sequences[modeltools.Model],
+            Sequence_,
+            variabletools.FastAccess,
+        ]
         | SubSequences[None, devicetools.Node, Sequence_, variabletools.FastAccess]
     )
     """Alias for |Sequence_.subvars|."""
@@ -1582,12 +1602,22 @@ during a simulation run is not supported but tried for sequence `t` of element \
     """
 
     subvars: (
-        IOSequences[modeltools.Model, Sequences, IOSequence, FastAccessIOSequence]
+        IOSequences[
+            modeltools.Model,
+            Sequences[modeltools.Model],
+            IOSequence,
+            FastAccessIOSequence,
+        ]
         | IOSequences[None, devicetools.Node, IOSequence, FastAccessIOSequence]
     )
     """The subgroup to which the IO sequence belongs."""
     subseqs: (
-        IOSequences[modeltools.Model, Sequences, IOSequence, FastAccessIOSequence]
+        IOSequences[
+            modeltools.Model,
+            Sequences[modeltools.Model],
+            IOSequence,
+            FastAccessIOSequence,
+        ]
         | IOSequences[None, devicetools.Node, IOSequence, FastAccessIOSequence]
     )
     """Alias for |IOSequence.subvars|."""
@@ -3097,9 +3127,9 @@ class InputSequence(BaseLinkInputSequence):
         >>> FusedVariable.clear_registry()
     """
 
-    subvars: InputSequences
+    subvars: InputSequences[modeltools.Model]
     """The subgroup to which the input sequence belongs."""
-    subseqs: InputSequences
+    subseqs: InputSequences[modeltools.Model]
     """Alias for |InputSequence.subvars|."""
     fastaccess: FastAccessInputSequence
     """Object for accessing the input sequence's data with little overhead."""
@@ -3377,9 +3407,9 @@ class DependentSequence(OutputSequence):
 class FactorSequence(DependentSequence):
     """Base class for factor sequences of |Model| objects."""
 
-    subvars: FactorSequences
+    subvars: FactorSequences[modeltools.Model]
     """The subgroup to which the factor sequence belongs."""
-    subseqs: FactorSequences
+    subseqs: FactorSequences[modeltools.Model]
     """Alias for |FactorSequence.subvars|."""
 
     NUMERIC: TypeNUMERIC = False  # Changing this requires implementing the related
@@ -3390,9 +3420,9 @@ class FactorSequence(DependentSequence):
 class FluxSequence(DependentSequence):
     """Base class for flux sequences of |Model| objects."""
 
-    subvars: FluxSequences
+    subvars: FluxSequences[modeltools.Model]
     """The subgroup to which the flux sequence belongs."""
-    subseqs: FluxSequences
+    subseqs: FluxSequences[modeltools.Model]
     """Alias for |FluxSequence.subvars|."""
 
 
@@ -3566,9 +3596,9 @@ not broadcast input array from shape (3,) into shape (2,)
     2.0, 3.0
     """
 
-    subvars: StateSequences
+    subvars: StateSequences[modeltools.Model]
     """The subgroup to which the state sequence belongs."""
-    subseqs: StateSequences
+    subseqs: StateSequences[modeltools.Model]
     """Alias for |StateSequence.subvars|."""
     fastaccess_new: FastAccessOutputSequence
     fastaccess_old: variabletools.FastAccess
@@ -3718,9 +3748,9 @@ class LogSequence(ConditionSequence):
     and read from condition files.
     """
 
-    subvars: LogSequences
+    subvars: LogSequences[modeltools.Model]
     """The subgroup to which the log sequence belongs."""
-    subseqs: LogSequences
+    subseqs: LogSequences[modeltools.Model]
     """Alias for |LogSequence.subvars|."""
 
     _CLS_FASTACCESS_PYTHON = variabletools.FastAccess
@@ -3781,9 +3811,9 @@ class AideSequence(ModelSequence):
     object.
     """
 
-    subvars: AideSequences
+    subvars: AideSequences[modeltools.Model]
     """The subgroup to which the aide sequence belongs."""
-    subseqs: AideSequences
+    subseqs: AideSequences[modeltools.Model]
     """Alias for |AideSequence.subvars|."""
 
     _CLS_FASTACCESS_PYTHON = variabletools.FastAccess
@@ -4020,45 +4050,45 @@ requested, but not prepared yet via `set_pointer`.
 class InletSequence(LinkSequence):
     """Base class for inlet link sequences of |Model| objects."""
 
-    subvars: InletSequences
+    subvars: InletSequences[modeltools.Model]
     """The subgroup to which the inlet sequence belongs."""
-    subseqs: InletSequences
+    subseqs: InletSequences[modeltools.Model]
     """Alias for |InletSequence.subvars|."""
 
 
 class OutletSequence(LinkSequence):
     """Base class for outlet link sequences of |Model| objects."""
 
-    subvars: OutletSequences
+    subvars: OutletSequences[modeltools.Model]
     """The subgroup to which the outlet sequence belongs."""
-    subseqs: OutletSequences
+    subseqs: OutletSequences[modeltools.Model]
     """Alias for |OutletSequence.subvars|."""
 
 
 class ObserverSequence(LinkSequence):
     """Base class for observer link sequences of |Model| objects."""
 
-    subvars: ObserverSequences
+    subvars: ObserverSequences[modeltools.Model]
     """The subgroup to which the observer sequence belongs."""
-    subseqs: ObserverSequences
+    subseqs: ObserverSequences[modeltools.Model]
     """Alias for |ObserverSequence.subvars|."""
 
 
 class ReceiverSequence(LinkSequence):
     """Base class for receiver link sequences of |Model| objects."""
 
-    subvars: ReceiverSequences
+    subvars: ReceiverSequences[modeltools.Model]
     """The subgroup to which the receiver sequence belongs."""
-    subseqs: ReceiverSequences
+    subseqs: ReceiverSequences[modeltools.Model]
     """Alias for |ReceiverSequence.subvars|."""
 
 
 class SenderSequence(LinkSequence):
     """Base class for sender link sequences of |Model| objects."""
 
-    subvars: SenderSequences
+    subvars: SenderSequences[modeltools.Model]
     """The subgroup to which the sender sequence belongs."""
-    subseqs: SenderSequences
+    subseqs: SenderSequences[modeltools.Model]
     """Alias for |SenderSequence.subvars|."""
 
 

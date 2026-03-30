@@ -32,7 +32,9 @@ if TYPE_CHECKING:
     from hydpy.core import modeltools
 
 
-TypeSubParameters = TypeVar("TypeSubParameters", bound="SubParameters")
+TypeSubParameters = TypeVar(
+    "TypeSubParameters", bound="SubParameters[modeltools.Model]"
+)
 
 
 def trim_kwarg(
@@ -230,10 +232,10 @@ class Parameters(Generic[TM_co]):
         self,
         model: TM_co,
         *,
-        cls_control: type[ControlParameters] | None = None,
-        cls_derived: type[DerivedParameters] | None = None,
-        cls_fixed: type[FixedParameters] | None = None,
-        cls_solver: type[SolverParameters] | None = None,
+        cls_control: type[ControlParameters[TM_co]] | None = None,
+        cls_derived: type[DerivedParameters[TM_co]] | None = None,
+        cls_fixed: type[FixedParameters[TM_co]] | None = None,
+        cls_solver: type[SolverParameters[TM_co]] | None = None,
         cymodel: CyModelProtocol | None = None,
         cythonmodule: types.ModuleType | None = None,
     ) -> None:
@@ -394,7 +396,7 @@ yet: longitude(?).
                 par.verify()
 
     @property
-    def secondary_subpars(self) -> Iterator[SubParameters]:
+    def secondary_subpars(self) -> Iterator[SubParameters[modeltools.Model]]:
         """Iterate through all subgroups of "secondary" parameters.
 
         These secondary parameter subgroups are the `derived` parameters and the
@@ -410,7 +412,7 @@ yet: longitude(?).
         yield self.derived
         yield self.solver
 
-    def __getitem__(self, item: str) -> SubParameters:
+    def __getitem__(self, item: str) -> SubParameters[modeltools.Model]:
         try:
             subpars = getattr(self, item)
         except AttributeError:
@@ -422,7 +424,7 @@ yet: longitude(?).
             f"a subtype of class `SubParameters`."
         )
 
-    def __iter__(self) -> Iterator[SubParameters]:
+    def __iter__(self) -> Iterator[SubParameters[modeltools.Model]]:
         for subpars in (self.control, self.derived, self.fixed, self.solver):
             if subpars:
                 yield subpars
@@ -440,7 +442,9 @@ class FastAccessParameter(variabletools.FastAccess):
 
 
 class SubParameters(
-    variabletools.SubVariables[TM_co, Parameters, "Parameter", FastAccessParameter]
+    variabletools.SubVariables[
+        TM_co, Parameters["modeltools.Model"], "Parameter", FastAccessParameter
+    ]
 ):
     '''Base class for handling subgroups of model parameters.
 
@@ -500,7 +504,7 @@ class SubParameters(
 
     def __init__(
         self,
-        master: Parameters,
+        master: Parameters[TM_co],
         cls_fastaccess: type[FastAccessParameter] | None = None,
         cymodel: CyModelProtocol | None = None,
     ):
@@ -1262,16 +1266,16 @@ broadcast input array from shape (2,) into shape (2,3)
     TIME: TypeTIME = None
     KEYWORDS: Mapping[str, Keyword] = {}
 
-    subvars: SubParameters
+    subvars: SubParameters[modeltools.Model]
     """The subgroup to which the parameter belongs."""
-    subpars: SubParameters
+    subpars: SubParameters[modeltools.Model]
     """Alias for |Parameter.subvars|."""
 
     _CLS_FASTACCESS_PYTHON = FastAccessParameter
 
-    _keywordarguments: KeywordArguments
+    _keywordarguments: KeywordArguments[Any]
 
-    def __init__(self, subvars: SubParameters) -> None:
+    def __init__(self, subvars: SubParameters[modeltools.Model]) -> None:
         super().__init__(subvars)
         self.subpars = subvars
         self._keywordarguments = KeywordArguments(False)
@@ -1626,7 +1630,7 @@ parameter and a simulation time step size first.
             )
 
     @property
-    def keywordarguments(self) -> KeywordArguments:
+    def keywordarguments(self) -> KeywordArguments[Any]:
         """A |KeywordArguments| object.
 
         By default, instances of |Parameter| subclasses return empty, invalid
@@ -1955,7 +1959,7 @@ class NameParameter(_MixinModifiableParameter, Parameter):
     constants: Constants
     _possible_values: set[int]
 
-    def __init__(self, subvars: SubParameters) -> None:
+    def __init__(self, subvars: SubParameters[modeltools.Model]) -> None:
         super().__init__(subvars)
         self.constants = type(self).constants
         self._possible_values = set(self.constants.values())
@@ -2356,7 +2360,7 @@ index parameter.
                 cls._reset_after_modification("constants", old_constants)
                 cls._reset_after_modification("relevant", old_relevant)
 
-    def __init__(self, subvars: SubParameters) -> None:
+    def __init__(self, subvars: SubParameters[modeltools.Model]) -> None:
         super().__init__(subvars)
         self.refindices = type(self).refindices
         self.constants = type(self).constants
@@ -3288,7 +3292,7 @@ for axis 0 with size 1
 
     strict_valuehandling: bool = False
 
-    def __init__(self, subvars: SubParameters) -> None:
+    def __init__(self, subvars: SubParameters[modeltools.Model]) -> None:
         super().__init__(subvars)
         self.entrynames: tuple[str, ...] = type(self).entrynames
         self.entrymin = type(self).entrymin
@@ -3658,7 +3662,7 @@ attribute nor a row or column related attribute named `wrong`.
 
     _rowcolumnmappings: dict[str, tuple[int, int]]
 
-    def __init__(self, subvars: SubParameters) -> None:
+    def __init__(self, subvars: SubParameters[modeltools.Model]) -> None:
         super().__init__(subvars)
         self.rownames = type(self).rownames
         self.columnnames = type(self).columnnames

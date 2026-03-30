@@ -143,10 +143,12 @@ def _add_locals_to_namespace(
     namespace.update(new_locals)
 
 
-def prepare_parameters(dict_: dict[str, Any]) -> parametertools.Parameters:
+def prepare_parameters(
+    dict_: dict[str, Any],
+) -> parametertools.Parameters[modeltools.Model]:
     """Prepare a |Parameters| object based on the given dictionary
     information and return it."""
-    cls_parameters: type[parametertools.Parameters] = dict_.get(
+    cls_parameters: type[parametertools.Parameters[modeltools.Model]] = dict_.get(
         "Parameters", parametertools.Parameters
     )
     return cls_parameters(
@@ -160,10 +162,12 @@ def prepare_parameters(dict_: dict[str, Any]) -> parametertools.Parameters:
     )
 
 
-def prepare_sequences(dict_: dict[str, Any]) -> sequencetools.Sequences:
+def prepare_sequences(
+    dict_: dict[str, Any],
+) -> sequencetools.Sequences[modeltools.Model]:
     """Prepare a |Sequences| object based on the given dictionary
     information and return it."""
-    cls_sequences: type[sequencetools.Sequences] = dict_.get(
+    cls_sequences: type[sequencetools.Sequences[modeltools.Model]] = dict_.get(
         "Sequences", sequencetools.Sequences
     )
     return cls_sequences(
@@ -620,7 +624,8 @@ following error occurred: The given `lland_knauf` instance is not considered sha
     """Reference to a weighting parameter."""
 
     __hydpy_maintype2subname2adders__: collections.defaultdict[
-        type[modeltools.Model], collections.defaultdict[str, list[SubmodelAdder]]
+        type[modeltools.Model],
+        collections.defaultdict[str, list[SubmodelAdder[Any, Any, Any]]],
     ] = collections.defaultdict(lambda: collections.defaultdict(list))
 
     _methodnames: frozenset[str]

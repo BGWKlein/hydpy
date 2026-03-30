@@ -742,7 +742,9 @@ to the NetCDF file `test.nc`, the following error occurred: ...
         )
 
 
-def query_variable(ncfile: netcdf4.Dataset, name: str) -> netcdf4.Variable:
+def query_variable(
+    ncfile: netcdf4.Dataset, name: str
+) -> netcdf4.Variable[numpy.float64]:
     """Return the variable with the given name from the given NetCDF file.
 
     Essentially, |query_variable| only queries the variable via keyword access using
@@ -765,7 +767,7 @@ def query_variable(ncfile: netcdf4.Dataset, name: str) -> netcdf4.Variable:
     >>> file_.close()
     """
     try:
-        return ncfile[name]
+        return cast("netcdf4.Variable[numpy.float64]", ncfile[name])
     except (IndexError, KeyError):
         raise RuntimeError(
             f"NetCDF file `{get_filepath(ncfile)}` does not contain variable `{name}`."
@@ -1100,7 +1102,9 @@ length of the second dimension is one, but its name is `realisation` instead of 
     return cast(NDArrayFloat, maskedarray.data)
 
 
-def _is_realisation(variable: netcdf4.Variable, ncfile: netcdf4.Dataset) -> bool:
+def _is_realisation(
+    variable: netcdf4.Variable[numpy.float64], ncfile: netcdf4.Dataset
+) -> bool:
     if variable.ndim == 2:
         return False
     if (variable.ndim == 3) and (variable.shape[1] == 1):
@@ -1157,7 +1161,7 @@ class JITAccessInfo(NamedTuple):
     """Helper class for structuring reading from or writing to a NetCDF file "just in
     time" during a simulation run for a specific |NetCDFVariableFlat| object."""
 
-    ncvariable: netcdf4.Variable
+    ncvariable: netcdf4.Variable[numpy.float64]
     """Variable for direct access to the relevant section of the NetCDF file."""
     realisation: bool
     """Flag that indicates if the relevant |JITAccessInfo.ncvariable| comes with an
