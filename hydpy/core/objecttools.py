@@ -1752,7 +1752,7 @@ classes: str and int.
     ('str1', 'str2', 1)
     """
     if isinstance(values, types_):
-        yield values  # type: ignore[misc]  # see issue 4949
+        yield values
     elif skip and (values is None):
         return
     else:

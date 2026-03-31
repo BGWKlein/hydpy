@@ -152,6 +152,7 @@ def prepare_model_hook(context: FunctionContext) -> Type:
             context=context.context,
             severity="error",
             code=ARG_TYPE,
+            origin_context=None,
         )
     return context.default_return_type
 
@@ -199,12 +200,14 @@ def submodeladder_call_hook(context: MethodContext) -> Type:
                 context=context.context,
                 severity="error",
                 code=ARG_TYPE,
+                origin_context=None,
             )
         context.api.msg.report(
             msg=f"No model named `{module_name}` available.",
             context=context.context,
             severity="error",
             code=ARG_TYPE,
+            origin_context=None,
         )
     return context.default_return_type
 
@@ -284,6 +287,7 @@ def method_hook(context: AttributeContext) -> Type:
             context=member_expr,
             severity="error",
             code=ATTR_DEFINED,
+            origin_context=None,
         )
     return context.default_attr_type
 
@@ -390,6 +394,7 @@ def variable_hook(context: AttributeContext) -> Type:
             context=member_expr,
             severity="error",
             code=ATTR_DEFINED,
+            origin_context=None,
         )
         return AnyType(type_of_any=TypeOfAny.from_error)
     return context.default_attr_type
