@@ -36,26 +36,43 @@ class UH(parametertools.Parameter):
     >>> uh
     uh(0.1, 0.2, 0.4, 0.2, 0.1)
 
-    Alternatively, implemented geometries can be specified via a positional 'option'
-    parameter and parameterised with the corresponding arguments.
+    Alternatively, implemented geometries can be specified via a keyword argument or
+    a positional 'option' parameter and parameterised with the corresponding arguments.
 
     We generate the ordinates of a unit hydrograph in the form of an isosceles triangle
     with a base length of 10 days:
 
     >>> from hydpy import print_vector
     >>> from hydpy.models.rconc import *
-    >>> uh("triangle", tb=10.0)
+    >>> uh(option="triangle", tb=10.0)
     >>> uh
-    uh("triangle", tb=10.0)
+    uh(option="triangle", tb=10.0)
     >>> print_vector(uh.values)
     0.02, 0.06, 0.1, 0.14, 0.18, 0.18, 0.14, 0.1, 0.06, 0.02
 
+    We could pass the option name as first positional parameter without keyword:
+
+    >>> uh("triangle", tb=10.0)
+    >>> uh
+    uh(option="triangle", tb=10.0)
+    >>> print_vector(uh.values)
+    0.02, 0.06, 0.1, 0.14, 0.18, 0.18, 0.14, 0.1, 0.06, 0.02
+
+    If we pass the option with keyword no other positional argument is allowed:
+
+    >>> uh(10, option="triangle")
+    Traceback (most recent call last):
+    ...
+    ValueError: While trying to set the values of parameter `uh` of element `?`, the \
+following error occurred: option is passed via keyword, no positional argument is allowed.
+
     The value of `tb` depends on the current parameter step size:
 
+    >>> uh("triangle", tb=10.0)
     >>> from hydpy import pub
     >>> with pub.options.parameterstep("2d"):
     ...     uh
-    uh("triangle", tb=5.0)
+    uh(option="triangle", tb=5.0)
 
     Omitting the option string will result in an error:
 
@@ -63,8 +80,8 @@ class UH(parametertools.Parameter):
     Traceback (most recent call last):
     ...
     ValueError: While trying to set the values of parameter `uh` of element `?`, the \
-following error occurred: Exactly one positional argument is expected, but none or \
-more than one is given.
+following error occurred: Exactly one positional argument is expected, when option is \
+not passed via keyword, but none or more than one is given.
 
     Also, calling uh with more than one positional argument or with a positional
     argument of the wrong type is not allowed:
@@ -73,8 +90,8 @@ more than one is given.
     Traceback (most recent call last):
     ...
     ValueError: While trying to set the values of parameter `uh` of element `?`, the \
-following error occurred: Exactly one positional argument is expected, but none or \
-more than one is given.
+following error occurred: Exactly one positional argument is expected, when option is \
+not passed via keyword, but none or more than one is given.
 
     >>> uh(True)
     Traceback (most recent call last):
@@ -87,7 +104,7 @@ of floats but a value of `bool` is given.
 
     >>> uh("triangle", tb=10.0, tp=7.0)
     >>> uh
-    uh("triangle", tb=10.0, tp=7.0)
+    uh(option="triangle", tb=10.0, tp=7.0)
     >>> print_vector(uh.values)
     0.014286, 0.042857, 0.071429, 0.1, 0.128571, 0.157143, 0.185714,
     0.166667, 0.1, 0.033333
@@ -96,7 +113,7 @@ of floats but a value of `bool` is given.
 
     >>> uh("triangle", tb=9.5, tp=6.7)
     >>> uh
-    uh("triangle", tb=9.5, tp=6.7)
+    uh(option="triangle", tb=9.5, tp=6.7)
     >>> print_vector(uh.values)
     0.015711, 0.047133, 0.078555, 0.109976, 0.141398, 0.17282, 0.199445,
     0.150376, 0.075188, 0.009398
@@ -117,7 +134,7 @@ following error occurred: Parameter 'tp' must not be greater than 'tb'.
 
     >>> uh("gr_uh1", x4=6.3)
     >>> uh
-    uh("gr_uh1", x4=6.3)
+    uh(option="gr_uh1", x4=6.3)
     >>> print_vector(uh.values)
     0.010038, 0.046746, 0.099694, 0.16474, 0.239926, 0.324027, 0.11483
 
@@ -127,7 +144,7 @@ following error occurred: Parameter 'tp' must not be greater than 'tb'.
 
     >>> uh("gr_uh2", x4=2.8)
     >>> uh
-    uh("gr_uh2", x4=2.8)
+    uh(option="gr_uh2", x4=2.8)
     >>> print_vector(uh.values)
     0.038113, 0.177487, 0.368959, 0.292023, 0.112789, 0.010628
 
@@ -194,6 +211,7 @@ following error occurred: Wrong arguments for option 'gr_uh2'.
     strict_valuehandling: bool = False
 
     KEYWORDS = {
+        "option": parametertools.Keyword(name="option"),
         "tb": parametertools.Keyword(name="tb", time=False),
         "tp": parametertools.Keyword(name="tp", time=False),
         "x4": parametertools.Keyword(name="x4", time=False),
@@ -205,12 +223,12 @@ following error occurred: Wrong arguments for option 'gr_uh2'.
 
     @overload
     def __call__(
-        self, option: Literal["triangle"], /, *, tb: float, tp: float | None = None
+        self, option: Literal["triangle"], *, tb: float, tp: float | None = None
     ) -> None: ...
 
     @overload
     def __call__(
-        self, option: Literal["gr_uh1", "gr_uh2"], /, *, x4: float, beta: float = 2.5
+        self, option: Literal["gr_uh1", "gr_uh2"], *, x4: float, beta: float = 2.5
     ) -> None: ...
 
     def __call__(
@@ -228,11 +246,18 @@ following error occurred: Wrong arguments for option 'gr_uh2'.
         #    super().__call__(*args, **kwargs)
         #    return None
         try:
-            self._validate_args(args)
-            if isinstance(args[0], str):
+            option = kwargs.pop("option", None)
+            if option is None:
+                self._validate_args(args)
+            elif option and args:
+                raise ValueError(
+                    "option is passed via keyword, no positional argument is "
+                    "allowed."
+                )
+            if option is None and isinstance(args[0], str):
                 option = args[0]
                 args = ()
-            else:
+            elif option is None:
                 try:
                     self.shape = len(args[0])
                     self.subpars.pars.model.sequences.logs.quh.shape = self.shape
@@ -313,7 +338,8 @@ following error occurred: Wrong arguments for option 'gr_uh2'.
     def _validate_args(self, args: tuple[VectorInputFloat | str, ...]) -> None:
         if len(args) != 1:
             raise ValueError(
-                "Exactly one positional argument is expected, but none or more "
+                "Exactly one positional argument is expected, when option is not "
+                "passed via keyword, but none or more "
                 "than one is given."
             )
 
@@ -324,7 +350,7 @@ following error occurred: Wrong arguments for option 'gr_uh2'.
                 if name in ("tb", "tp", "x4"):
                     value *= self.get_timefactor()
                 if name == "option":
-                    strings.append(f'"{objecttools.repr_(value)}"')
+                    strings.append(f'option="{objecttools.repr_(value)}"')
                 else:
                     strings.append(f"{name}={objecttools.repr_(value)}")
             return f"{self.name}({', '.join(strings)})"
